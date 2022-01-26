@@ -1,0 +1,12 @@
+.task:hover{
+    background: pink !important; 
+    cursor: pointer;
+}
+
+body{
+    background: lightblue;
+}
+
+.task{
+    transition: .4s;
+}
