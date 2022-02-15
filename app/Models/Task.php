@@ -2,8 +2,14 @@
 
 namespace App\Models;
 
+
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
+
+
+
+
 
 class Task extends Model
 {
@@ -14,4 +20,13 @@ class Task extends Model
         "text"
         
     ];
+
+    public function getShortTextAttribute()
+    {
+        return Str::limit($this->text, 20, '...');
+    }
+
+
 }
+
+

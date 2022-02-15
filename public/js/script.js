@@ -8,7 +8,7 @@ function show(elem) {
     }, 100);
 }
 function hide(elem) {
-    elem.style.transform = 'translateY(-100%)';
+    elem.style.transform = 'translateY(100%)';
     elem.style.opacity = '0';
 }
 
@@ -34,7 +34,7 @@ const deleteFunc = (click) => {
                     hide(task_elem);
                     setTimeout(() => {
                         task_elem.remove();
-                    }, 200);
+                    }, 300);
                 }
             })
     })

@@ -45,16 +45,7 @@
                 
         </div>
    
-        {{-- <div id="modalBlock" >
-            
-            <p>Modal random text and more random text</p>
-        </div>
-        
-        <button id="showModal">Show modal</button>
-    
-    
- --}}
-
+     
 
 
 

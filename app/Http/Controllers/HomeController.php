@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Task;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class HomeController extends Controller
 {
@@ -19,12 +20,12 @@ class HomeController extends Controller
       $task = Task::create([        
         "text" => $request->text
       ]);
+      
       return response()->json(['text'=>$task->text, 'id'=>$task->id]);
     }
     
     public function delete(Request $request)
     {
-      info($request);
       $task = Task::find($request->id);
       if ($task !== null) {
         $task -> delete();
