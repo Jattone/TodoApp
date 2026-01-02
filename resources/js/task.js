@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const taskNameInput = document.getElementById('task-name');
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 
-    // --- 1. Tasks Loading ---
+    // --- Tasks Loading ---
     function loadTasks(listId, newTaskData = null) {
         if (!listId || !taskListContainer) return;
 
@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const item = document.createElement('div');
                     const isNew = newTaskData && task.id === newTaskData.id;
                     item.className = `list-group-item list-group-item-action py-3 px-4 border-0 task-row ${isNew ? 'animate__animated animate__fadeInDown' : ''}`;
-                    
+                    item.dataset.id = task.id;
                     item.style.cursor = 'pointer';
                     item.innerHTML = `
                         <div class="d-flex align-items-center">
@@ -46,7 +46,25 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
 
-    // --- 2. Delete Task ---
+    // --- DRAG & DROP SORTING ---
+    const sortable = new Sortable(taskListContainer, {
+        animation: 150,
+        ghostClass: 'bg-light',
+        onEnd: function() {
+            const order = Array.from(taskListContainer.querySelectorAll('.task-row'))
+                .map(el => el.dataset.id);
+            fetch('/task/reorder', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken
+                },
+                body: JSON.stringify({ order: order })
+            });
+        }
+    });
+
+    // --- Delete Task ---
     function confirmTaskDeletion(id, name, element) {
         Swal.fire({
             title: 'Is task completed?',
@@ -76,7 +94,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
- // --- 3. ADDING A TASK (WITH CHECKING THE EXISTENCE OF A LIST) ---
+ // --- ADDING A TASK (WITH CHECKING THE EXISTENCE OF A LIST) ---
     if (taskForm) {
         taskForm.onsubmit = function(e) {
             e.preventDefault();
@@ -113,7 +131,7 @@ document.addEventListener('DOMContentLoaded', function() {
         };
     }
 
-    // --- 4. CLEARING THE ENTIRE LIST ---
+    // --- CLEARING THE ENTIRE LIST ---
     const clearListBtn = document.getElementById('clear-list-btn');
 
     if (clearListBtn) {
@@ -158,7 +176,7 @@ document.addEventListener('DOMContentLoaded', function() {
         };
     }
 
-    // --- 5. TABS ---
+    // --- TABS ---
     function renderTab(list) {
         const tab = document.createElement('div');
         tab.className = 'list-tab';
@@ -193,7 +211,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (target) target.click();
     });
 
-    // --- 6.(New List, Rename, Delete) ---
+    // --- New List, Rename, Delete ---
     if (createListBtn) {
         createListBtn.onclick = async () => {
             const { value: name } = await Swal.fire({ title: 'New List Name', input: 'text', showCancelButton: true });

@@ -11,7 +11,9 @@ Route::get('/', [TaskController::class, 'index']);
 
 // (Task)
 Route::post('/task', [TaskController::class, 'store']);
+Route::post('/task/reorder', [TaskController::class, 'reorder']);
 Route::delete('/task/{task}', [TaskController::class, 'destroy']);
+Route::delete('/lists/{id}/tasks', [TaskController::class, 'destroyAll']);
 Route::get('/lists/{id}/tasks', [TaskController::class, 'getTasks']);
 
 // (TaskList)

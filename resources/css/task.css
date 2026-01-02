@@ -55,6 +55,10 @@ body {
     border-bottom: 1px solid #f8f9fa !important; 
     cursor: pointer;
     overflow: hidden; 
+    cursor: grab;
+}
+.task-row:active {
+    cursor: grabbing;
 }
 #lists-container > * {
     -webkit-touch-callout: none !important;

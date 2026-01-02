@@ -9,7 +9,8 @@ class TaskController extends Controller
 {
     public function index() 
     {
-        $tasks = Task::orderBy('created_at', 'asc')->get();
+        $tasks = Task::orderBy('position', 'asc')->get();
+        
         return view('tasks', ['tasks' => $tasks]);
     }
 
@@ -30,13 +31,36 @@ class TaskController extends Controller
 
     public function getTasks($id) 
     {
-        $tasks = Task::where('task_list_id', $id)->orderBy('created_at', 'asc')->get();
+        $tasks = Task::where('task_list_id', $id)
+            ->orderBy('position', 'asc')
+            ->orderBy('created_at', 'desc')
+            ->get();
+
         return response()->json($tasks);
+    }
+
+    public function reorder(Request $request) 
+    {
+        $order = $request->order;
+
+        foreach ($order as $index => $id) {
+            Task::where('id', $id)->update(['position' => $index]);
+        }
+
+        return response()->json(['success' => true]);
     }
 
     public function destroy(Task $task) 
     {
         $task->delete();
+
+        return response()->json(['success' => true]);
+    }
+
+    public function destroyAll($listId)
+    {
+        Task::where('task_list_id', $listId)->delete();
+
         return response()->json(['success' => true]);
     }
 }
