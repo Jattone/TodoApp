@@ -13,29 +13,30 @@ class TaskController extends Controller
         return view('tasks', ['tasks' => $tasks]);
     }
 
-    public function store(Request $request) {
+    public function store(Request $request)
+    {
         $request->validate([
-            'name' => 'required|max:255',
+            'name' => 'required|string|max:255',
+            'task_list_id' => 'required' 
         ]);
 
         $task = Task::create([
             'name' => $request->name,
+            'task_list_id' => $request->task_list_id,
         ]);
 
-    return redirect('/')->with('new_task_id', $task->id);
-}
+        return response()->json($task);
+    }
+
+    public function getTasks($id) 
+    {
+        $tasks = Task::where('task_list_id', $id)->orderBy('created_at', 'asc')->get();
+        return response()->json($tasks);
+    }
 
     public function destroy(Task $task) 
     {
         $task->delete();
-
-        if (request()->ajax() || request()->wantsJson()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Task deleted'
-            ]);
-        }
-
-        return redirect('/');
+        return response()->json(['success' => true]);
     }
 }
