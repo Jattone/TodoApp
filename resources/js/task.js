@@ -60,8 +60,25 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    
+    // Revert last deleted tasks
+    const lastDeletedTasks = {};
+
+    window.updateRevertUI = function (listId) {
+        const revertContainer = document.getElementById('revert-container');
+        if(!revertContainer) return;
+
+        if (lastDeletedTasks[listId]) {
+            revertContainer.style.display = 'block';
+        } else {
+            revertContainer.style.display = 'none';
+        }
+    }
+
     // Delete task confirmation
     function confirmTaskDeletion(id, name, element) {
+        const listId = document.getElementById('active-list-id-input').value;
+
         Swal.fire({
             title: 'Is task completed?',
             text: `"${name}"`,
@@ -77,16 +94,51 @@ document.addEventListener('DOMContentLoaded', function() {
                     headers: { 'X-CSRF-TOKEN': csrfToken, 'X-Requested-With': 'XMLHttpRequest' }
                 }).then(res => {
                     if (res.ok) {
+                        lastDeletedTasks[listId] = {name: name, listId: listId};
+                        window.updateRevertUI(listId);
+                        
                         element.classList.add('animate__animated', 'animate__backOutLeft');
                         setTimeout(() => {
                             element.remove();
                             if (taskListContainer.querySelectorAll('.task-row').length === 0) {
-                                window.loadTasks(activeListInput.value);
+                                window.loadTasks(listId);
                             }
                         }, 500);
                     }
                 });
             }
+        });
+    }
+
+    document.getElementById('revert-btn').onclick = function() {
+        const listId = document.getElementById('active-list-id-input').value;
+        const taskData = lastDeletedTasks[listId];
+        if (!taskData) return;
+
+        fetch('/task', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ name: taskData.name, task_list_id: taskData.listId })
+        })
+        .then(res => res.json())
+        .then(newTask => {
+            delete lastDeletedTasks[listId];
+            window.updateRevertUI(listId);
+            window.loadTasks(listId, newTask);
+            const Toast = Swal.mixin({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 2000,
+        });
+            Toast.fire({
+                icon: 'success',
+                title: `Task "${newTask.name}" restored`
+            });
         });
     }
 

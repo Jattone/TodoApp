@@ -42,6 +42,11 @@
             <div class="card-header bg-white fw-bold py-3 d-flex justify-content-between align-items-center">
                 <span><i class="fa-solid fa-tasks text-success me-2"></i>Current Tasks</span>
                 <small class="text-muted fw-normal">Click on a task to complete it</small>
+                <div id="revert-container" style="display: none;">
+                    <button id="revert-btn" class="btn btn-link btn-sm text-decoration-none p-0 text-primary animate__animated animate__fadeIn">
+                        <i class="fa-solid fa-rotate-left me-1"></i> Revert
+                    </button>
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="list-group list-group-flush" id="task-list"></div>

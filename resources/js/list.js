@@ -20,10 +20,16 @@ function renderTab(list) {
     tab.onclick = () => {
         document.querySelectorAll('.list-tab').forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
-        activeListInput.value = list.id;
-        localStorage.setItem('lastActiveListId', list.id);
+
+        const listId = list.id;
+        activeListInput.value = listId;
+        localStorage.setItem('lastActiveListId', listId);
         
-        if (window.loadTasks) window.loadTasks(list.id);
+        if (window.loadTasks) window.loadTasks(listId);
+
+        if (typeof window.updateRevertUI === 'function') {
+            window.updateRevertUI(listId);
+        }
     };
 
     tab.oncontextmenu = (e) => {
