@@ -9,7 +9,7 @@ class TaskList extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['title'];
+    protected $fillable = ['title', 'is_favorite'];
 
     public function tasks()
     {

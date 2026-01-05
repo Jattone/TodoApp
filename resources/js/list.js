@@ -6,32 +6,70 @@ document.addEventListener('DOMContentLoaded', function() {
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 
     // --- TABS (LISTS) ---
-    function renderTab(list) {
-        const tab = document.createElement('div');
-        tab.className = 'list-tab';
-        tab.innerText = list.title;
-        tab.dataset.id = list.id;
+function renderTab(list) {
+    const tab = document.createElement('div');
+    tab.className = 'list-tab d-flex align-items-center';
+
+    const starIcon = list.is_favorite 
+        ? '<i class="fa-solid fa-star text-warning ms-2" style="font-size: 0.8rem;"></i>' 
+        : '';
         
-        tab.onclick = () => {
-            document.querySelectorAll('.list-tab').forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            activeListInput.value = list.id;
-            localStorage.setItem('lastActiveListId', list.id);
-            
-            if (window.loadTasks) window.loadTasks(list.id);
-        };
+    tab.innerHTML = `<span>${list.title}</span>${starIcon}`;
+    tab.dataset.id = list.id;
+    
+    tab.onclick = () => {
+        document.querySelectorAll('.list-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        activeListInput.value = list.id;
+        localStorage.setItem('lastActiveListId', list.id);
+        
+        if (window.loadTasks) window.loadTasks(list.id);
+    };
 
-        tab.oncontextmenu = (e) => {
-            e.preventDefault();
-            contextMenu.style.display = 'block';
-            contextMenu.style.position = 'fixed';
-            contextMenu.style.left = e.clientX + 'px';
-            contextMenu.style.top = e.clientY + 'px';
-            contextMenu.dataset.selectedId = list.id;
-        };
+    tab.oncontextmenu = (e) => {
+        e.preventDefault();
+        contextMenu.style.display = 'block';
+        contextMenu.style.position = 'fixed';
+        contextMenu.style.left = e.clientX + 'px';
+        contextMenu.style.top = e.clientY + 'px';
+        contextMenu.dataset.selectedId = list.id;
 
+        contextMenu.dataset.isFavorite = list.is_favorite;
+
+        const favBtn = document.getElementById('toggle-favorite');
+        const favBtnSpan = favBtn.querySelector('span');
+        const favBtnIcon = favBtn.querySelector('i');
+
+        if (list.is_favorite == true || list.is_favorite == 1) {
+            favBtnSpan.innerText = 'Unpin';
+            favBtnIcon.className = 'fa-regular fa-star me-2 text-secondary';
+        } else {
+            favBtnSpan.innerText = 'Pin to Top';
+            favBtnIcon.className = 'fa-solid fa-star me-2 text-warning';
+        }
+    };
+
+    // Sort favorites to top
+    if (list.is_favorite) {
+        listsContainer.prepend(tab);
+    } else {
         listsContainer.appendChild(tab);
     }
+}
+    document.getElementById('toggle-favorite').onclick = () => {
+        const id = contextMenu.dataset.selectedId;
+        fetch(`/lists/${id}/toggle-favorite`, {
+            method: 'POST',
+            headers: { 
+                'X-CSRF-TOKEN': csrfToken,
+                'Content-Type': 'application/json'
+            }
+        }).then(res => {
+            if (res.ok) {
+                location.reload(); 
+            }
+        });
+    };
 
     fetch('/lists').then(res => res.json()).then(data => {
         listsContainer.innerHTML = '';

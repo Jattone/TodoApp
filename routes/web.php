@@ -21,3 +21,4 @@ Route::get('/lists', [TaskListController::class, 'index']);
 Route::post('/lists', [TaskListController::class, 'store']);
 Route::put('/lists/{id}', [TaskListController::class, 'update']);
 Route::delete('/lists/{id}', [TaskListController::class, 'destroy']);
+Route::post('/lists/{id}/toggle-favorite', [TaskListController::class, 'toggleFavorite']);

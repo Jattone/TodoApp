@@ -10,7 +10,21 @@ class TaskListController extends Controller
 {
     public function index()
     {
-        return response()->json(TaskList::all());
+        return response()->json(
+            TaskList::orderBy('is_favorite', 'desc')
+                    ->orderBy('created_at', 'asc')
+                    ->get()
+        );
+    }
+
+    public function toggleFavorite($id)
+    {
+        $list = TaskList::findOrFail($id);
+        $list->update([
+            'is_favorite' => !$list->is_favorite
+        ]);
+
+        return response()->json($list);
     }
 
     public function store(Request $request)
@@ -20,7 +34,8 @@ class TaskListController extends Controller
         ]);
 
         $list = TaskList::create([
-            'title' => $request->title
+            'title' => $request->title,
+            'is_favorite' => false,
         ]);
 
         return response()->json($list);
