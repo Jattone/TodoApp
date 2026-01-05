@@ -112,13 +112,27 @@ function renderTab(list) {
     document.getElementById('edit-list-name').onclick = async () => {
         const id = contextMenu.dataset.selectedId;
         const tab = document.querySelector(`.list-tab[data-id="${id}"]`);
-        const { value: title } = await Swal.fire({ title: 'Enter New Name', input: 'text', inputValue: tab.innerText, showCancelButton: true });
+        const currentName = tab.querySelector('span') ? tab.querySelector('span').innerText : tab.innerText;
+        const { value: title } = await Swal.fire({
+            title: 'Enter New Name',
+            input: 'text',
+            inputValue: tab.innerText,
+            showCancelButton: true 
+        });
+
         if (title) {
             fetch(`/lists/${id}`, { 
                 method: 'PUT', 
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken }, 
                 body: JSON.stringify({ title: title }) 
-            }).then(() => tab.innerText = title);
+            })
+            .then(res => res.json())
+            .then(updatedList => {
+                const starIcon = updatedList.is_favorite 
+                    ? '<i class="fa-solid fa-star text-warning ms-2" style="font-size: 0.8rem;"></i>' 
+                    : '';
+                tab.innerHTML = `<span>${updatedList.title}</span>${starIcon}`;
+            });
         }
     };
 
