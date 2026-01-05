@@ -3,31 +3,39 @@
 @section('content')
 <div class="row justify-content-center">
     <div class="col-md-8">
-        
-        <div class="card mb-4 border-0 shadow-sm">
-            <div class="card-header bg-white py-3 d-flex align-items-center justify-content-between overflow-hidden">
-                <div id="lists-container" class="d-flex gap-2 align-items-center overflow-auto me-3"></div>
-                <button type="button" id="create-list-btn" class="btn btn-sm btn-light border shadow-sm px-3 fw-bold text-primary flex-shrink-0">
-                    <i class="fa-solid fa-plus me-2"></i>New List
-                </button>
-            </div>
+     
+        <div id="mobile-header-drawer" class="mobile-drawer">
+            <div class="card border-0 shadow-sm"> 
+                <div class="card-header bg-white py-3 d-flex align-items-center justify-content-between overflow-hidden">
+                    <div id="lists-container" class="d-flex gap-2 align-items-center overflow-auto me-2"></div>
+                    <button type="button" id="create-list-btn" class="btn btn-sm btn-light border shadow-sm px-3 fw-bold text-primary flex-shrink-0">
+                        <i class="fa-solid fa-plus"></i>
+                        <span class="d-none d-md-inline ms-1">New List</span>
+                    </button>
+                </div>
 
-            <div class="card-body p-4">
-                @include('common.errors')
-                <form id="add-task-form" action="/task" method="POST" class="row g-3">
-                    @csrf
-                    <div class="col-sm-8">
-                        <input type="text" name="name" id="task-name" class="form-control form-control-lg" placeholder="What do we need to do?" required autofocus>
-                        <input type="hidden" name="task_list_id" id="active-list-id-input">
-                    </div>
-                    <div class="col-sm-4 d-flex gap-2">
-                        <button type="submit" class="btn btn-primary btn-lg flex-grow-1 shadow-sm" title="Add a new task to the current list">Add Task</button>
-                        <button type="button" id="clear-list-btn" class="btn btn-outline-danger btn-lg shadow-sm" title="Clear all tasks from the current list">
-                            <i class="fa-solid fa-trash-can"></i>
-                        </button>
-                    </div>
-                </form>
+                <div class="card-body p-4">
+                    @include('common.errors')
+                    <form id="add-task-form" action="/task" method="POST" class="row g-3">
+                        @csrf
+                        <div class="col-sm-8">
+                            <input type="text" name="name" id="task-name" class="form-control form-control-lg" placeholder="What do we need to do?" required autofocus>
+                            <input type="hidden" name="task_list_id" id="active-list-id-input">
+                        </div>
+                        <div class="col-sm-4 d-flex gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg flex-grow-1 shadow-sm">Add Task</button>
+                            <button type="button" id="clear-list-btn" class="btn btn-outline-danger btn-lg shadow-sm">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
+        </div>
+
+        <div class="d-md-none text-center py-2 border-bottom shadow-sm bg-white sticky-top" id="toggle-drawer-btn">
+            <i class="fa-solid fa-chevron-down text-primary" id="drawer-icon"></i>
+            <span class="ms-2 text-muted small fw-bold">Lists & Adds</span>
         </div>
 
         <div class="card border-0 shadow-sm">
@@ -38,7 +46,7 @@
             <div class="card-body p-0">
                 <div class="list-group list-group-flush" id="task-list"></div>
             </div>
-        </div>
+        </div>        
     </div>
 </div>
 

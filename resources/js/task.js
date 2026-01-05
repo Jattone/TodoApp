@@ -1,15 +1,13 @@
+// task.js
 document.addEventListener('DOMContentLoaded', function() {
-    const listsContainer = document.getElementById('lists-container');
     const taskListContainer = document.getElementById('task-list');
     const taskForm = document.getElementById('add-task-form');
     const activeListInput = document.getElementById('active-list-id-input');
-    const contextMenu = document.getElementById('context-menu');
-    const createListBtn = document.getElementById('create-list-btn');
     const taskNameInput = document.getElementById('task-name');
+    const clearListBtn = document.getElementById('clear-list-btn');
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 
-    // --- Tasks Loading ---
-    function loadTasks(listId, newTaskData = null) {
+    window.loadTasks = function(listId, newTaskData = null) {
         if (!listId || !taskListContainer) return;
 
         fetch(`/lists/${listId}/tasks`)
@@ -44,27 +42,25 @@ document.addEventListener('DOMContentLoaded', function() {
                     taskListContainer.appendChild(item);
                 });
             });
+    };
+
+    // Drag & Drop
+    if (taskListContainer) {
+        new Sortable(taskListContainer, {
+            animation: 150,
+            ghostClass: 'bg-light',
+            onEnd: function() {
+                const order = Array.from(taskListContainer.querySelectorAll('.task-row'))
+                    .map(el => el.dataset.id);
+                fetch('/task/reorder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+                    body: JSON.stringify({ order: order })
+                });
+            }
+        });
     }
-
-    // --- DRAG & DROP SORTING ---
-    const sortable = new Sortable(taskListContainer, {
-        animation: 150,
-        ghostClass: 'bg-light',
-        onEnd: function() {
-            const order = Array.from(taskListContainer.querySelectorAll('.task-row'))
-                .map(el => el.dataset.id);
-            fetch('/task/reorder', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': csrfToken
-                },
-                body: JSON.stringify({ order: order })
-            });
-        }
-    });
-
-    // --- Delete Task ---
+    // Delete task confirmation
     function confirmTaskDeletion(id, name, element) {
         Swal.fire({
             title: 'Is task completed?',
@@ -85,7 +81,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         setTimeout(() => {
                             element.remove();
                             if (taskListContainer.querySelectorAll('.task-row').length === 0) {
-                                loadTasks(activeListInput.value);
+                                window.loadTasks(activeListInput.value);
                             }
                         }, 500);
                     }
@@ -94,7 +90,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
- // --- ADDING A TASK (WITH CHECKING THE EXISTENCE OF A LIST) ---
+    //  Adding a new task
     if (taskForm) {
         taskForm.onsubmit = function(e) {
             e.preventDefault();
@@ -102,13 +98,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const listId = activeListInput.value;
             
             if (!listId) {
-                Swal.fire({
-                    title: 'No list selected!',
-                    text: 'Please create a list first before adding a task.',
-                    icon: 'info',
-                    confirmButtonText: 'Got it!',
-                    confirmButtonColor: '#3b82f6'
-                });
+                Swal.fire({ title: 'No list selected!', text: 'Please create a list first.', icon: 'info' });
                 return;
             }
 
@@ -126,14 +116,12 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(res => res.json())
             .then(newTask => {
                 taskNameInput.value = '';
-                loadTasks(listId, newTask);
+                window.loadTasks(listId, newTask);
             });
         };
     }
 
-    // --- CLEARING THE ENTIRE LIST ---
-    const clearListBtn = document.getElementById('clear-list-btn');
-
+    // Clearing all tasks in the list
     if (clearListBtn) {
         clearListBtn.onclick = () => {
             const listId = activeListInput.value;
@@ -143,132 +131,30 @@ document.addEventListener('DOMContentLoaded', function() {
 
             Swal.fire({
                 title: 'Clear all tasks?',
-                text: `You are about to delete all ${tasksCount} tasks from this list.`,
+                text: `You are about to delete all ${tasksCount} tasks.`,
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#ef4444',
-                confirmButtonText: 'Yeah, clear it all!',
-                cancelButtonText: 'Nope, keep them'
+                confirmButtonText: 'Clear it all!'
             }).then((result) => {
                 if (result.isConfirmed) {
                     fetch(`/lists/${listId}/tasks`, {
                         method: 'DELETE',
-                        headers: { 
-                            'X-CSRF-TOKEN': csrfToken,
-                            'X-Requested-With': 'XMLHttpRequest'
-                        }
+                        headers: { 'X-CSRF-TOKEN': csrfToken, 'X-Requested-With': 'XMLHttpRequest' }
                     }).then(res => {
                         if (res.ok) {
                             const allTasks = taskListContainer.querySelectorAll('.task-row');
                             allTasks.forEach((item, index) => {
-                                setTimeout(() => {
-                                    item.classList.add('animate__animated', 'animate__fadeOutRight');
-                                }, index * 50);
+                                setTimeout(() => item.classList.add('animate__animated', 'animate__fadeOutRight'), index * 50);
                             });
                             setTimeout(() => {
-                                loadTasks(listId);
-                                Swal.fire('Cleared!', 'Your list is now empty.', 'success');
+                                window.loadTasks(listId);
+                                Swal.fire('Cleared!', '', 'success');
                             }, 500);
                         }
                     });
                 }
             });
         };
-    }
-
-    // --- TABS ---
-    function renderTab(list) {
-        const tab = document.createElement('div');
-        tab.className = 'list-tab';
-        tab.innerText = list.title;
-        tab.dataset.id = list.id;
-        
-        tab.onclick = () => {
-            document.querySelectorAll('.list-tab').forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            activeListInput.value = list.id;
-            localStorage.setItem('lastActiveListId', list.id);
-            loadTasks(list.id);
-        };
-
-        tab.oncontextmenu = (e) => {
-            e.preventDefault();
-            contextMenu.style.display = 'block';
-            contextMenu.style.position = 'fixed';
-            contextMenu.style.left = e.clientX + 'px';
-            contextMenu.style.top = e.clientY + 'px';
-            contextMenu.dataset.selectedId = list.id;
-        };
-
-        listsContainer.appendChild(tab);
-    }
-
-    fetch('/lists').then(res => res.json()).then(data => {
-        listsContainer.innerHTML = '';
-        data.forEach(list => renderTab(list));
-        const savedId = localStorage.getItem('lastActiveListId');
-        const target = document.querySelector(`.list-tab[data-id="${savedId}"]`) || listsContainer.firstChild;
-        if (target) target.click();
-    });
-
-    // --- New List, Rename, Delete ---
-    if (createListBtn) {
-        createListBtn.onclick = async () => {
-            const { value: name } = await Swal.fire({ title: 'New List Name', input: 'text', showCancelButton: true });
-            if (name) {
-                fetch('/lists', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
-                    body: JSON.stringify({ title: name })
-                })
-                .then(res => res.json())
-                .then(newList => {
-                    renderTab(newList);
-                    const tabs = listsContainer.querySelectorAll('.list-tab');
-                    tabs[tabs.length - 1].click();
-                });
-            }
-        };
-    }
-
-    document.addEventListener('click', () => contextMenu.style.display = 'none');
-
-    document.getElementById('edit-list-name').onclick = async () => {
-        const id = contextMenu.dataset.selectedId;
-        const tab = document.querySelector(`.list-tab[data-id="${id}"]`);
-        const { value: title } = await Swal.fire({ title: 'Enter New Name', input: 'text', inputValue: tab.innerText, showCancelButton: true });
-        if (title) {
-            fetch(`/lists/${id}`, { 
-                method: 'PUT', 
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken }, 
-                body: JSON.stringify({ title: title }) 
-            }).then(() => tab.innerText = title);
-        }
-    };
-
-    document.getElementById('delete-list').onclick = () => {
-        const id = contextMenu.dataset.selectedId;
-        const tab = document.querySelector(`.list-tab[data-id="${id}"]`);
-        const listTitle = tab ? tab.innerText : 'this list';
-
-        Swal.fire({ 
-            title: `Delete list "${listTitle}"?`,
-            text: "All tasks in this list will be permanently removed!",
-            icon: 'warning', 
-            showCancelButton: true,
-            confirmButtonColor: '#ef4444',
-            confirmButtonText: 'Yes, delete it!'
-        }).then(res => {
-            if (res.isConfirmed) {
-                fetch(`/lists/${id}`, { 
-                    method: 'DELETE', 
-                    headers: { 'X-CSRF-TOKEN': csrfToken } 
-                })
-                .then(() => {
-                    localStorage.removeItem('lastActiveListId');
-                    location.reload();
-                });
-            }
-        });
     }
 });
