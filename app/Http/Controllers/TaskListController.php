@@ -5,38 +5,46 @@ namespace App\Http\Controllers;
 use App\Models\Task;
 use App\Models\TaskList;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 
 class TaskListController extends Controller
 {
     public function index()
     {
         return response()->json(
-            TaskList::orderBy('is_favorite', 'desc')
-                    ->orderBy('created_at', 'asc')
-                    ->get()
+            Auth::user()->ownedTaskLists()
+                        ->orderBy('is_favorite', 'desc')
+                        ->orderBy('created_at', 'asc')
+                        ->get()
         );
     }
 
-    public function toggleFavorite($id)
-    {
-        $list = TaskList::findOrFail($id);
-        $list->update([
-            'is_favorite' => !$list->is_favorite
-        ]);
-
-        return response()->json($list);
-    }
-
+    
     public function store(Request $request)
     {
         $request->validate([
             'title' => 'required|string|max:20'
         ]);
-
-        $list = TaskList::create([
+        
+        $list = Auth::user()->ownedTaskLists()->create([
             'title' => $request->title,
             'is_favorite' => false,
         ]);
+
+        if (method_exists($list, 'members')) {
+            $list->members()->attach(Auth::id(), ['role' => 'owner']);
+        }   
+            
+        return response()->json($list);
+    }
+    
+    public function toggleFavorite($id)
+    {
+        $list = Auth::user()->ownedTaskLists()->findOrFail($id);
+
+        $list->is_favorite = !$list->is_favorite;
+        $list->save();
 
         return response()->json($list);
     }
@@ -47,7 +55,7 @@ class TaskListController extends Controller
             'title' => 'required|string|max:20'
         ]);
 
-        $list = TaskList::findOrFail($id);
+        $list = Auth::user()->ownedTaskLists()->findOrFail($id);
         $list->update(['title' => $request->title]);
 
         return response()->json($list);
@@ -55,9 +63,9 @@ class TaskListController extends Controller
 
     public function destroy($id)
     {
-        $list = TaskList::findOrFail($id);
+        $list = Auth::user()->ownedTaskLists()->findOrFail($id);
 
-        Task::where('task_list_id', $id)->delete();
+        $list->tasks()->delete();
         
         $list->delete();
 
