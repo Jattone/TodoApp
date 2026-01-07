@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use App\Models\TaskList;
+use App\Models\Task;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class User extends Authenticatable
 {
@@ -19,9 +22,27 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'name',
-        'email',
-        'password',
+        'telegram_id',
+        'username',
+        'photo_url',
     ];
+
+    public function ownedTaskLists() : HasMany
+    {
+        return $this->hasMany(TaskList::class);
+    }
+
+    public function sharedTaskLists() : HasMany
+    {
+        return $this->belongsToMany(TaskList::class, 'task_list_user')
+                    ->withPivot('role')
+                    ->withTimestamps();
+    }
+
+    public function tasks() : HasMany
+    {
+        return $this->hasMany(Task::class);
+    }
 
     /**
      * The attributes that should be hidden for serialization.
@@ -29,7 +50,6 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $hidden = [
-        'password',
         'remember_token',
     ];
 
@@ -41,8 +61,7 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
+            //
         ];
     }
 }

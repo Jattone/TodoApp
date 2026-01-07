@@ -3,35 +3,23 @@
 namespace App\Http\Controllers;
 
 use App\Models\Task;
+use App\Models\TaskList;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class TaskController extends Controller
 {
     public function index() 
     {
-        $tasks = Task::orderBy('position', 'asc')->get();
-        
-        return view('tasks', ['tasks' => $tasks]);
+        return view('tasks');
     }
 
-    public function store(Request $request)
+    public function getByList($listId) 
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'task_list_id' => 'required' 
-        ]);
+        $list = Auth::user()->ownedTaskLists()->findOrFail($listId);
 
-        $task = Task::create([
-            'name' => $request->name,
-            'task_list_id' => $request->task_list_id,
-        ]);
-
-        return response()->json($task);
-    }
-
-    public function getTasks($id) 
-    {
-        $tasks = Task::where('task_list_id', $id)
+        $tasks = $list->tasks()
+            ->where('user_id', Auth::id())
             ->orderBy('position', 'asc')
             ->orderBy('created_at', 'desc')
             ->get();
@@ -39,27 +27,49 @@ class TaskController extends Controller
         return response()->json($tasks);
     }
 
+    public function store(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'task_list_id' => 'required|exists:task_lists,id', 
+        ]);
+
+        $list = Auth::user()->ownedTaskLists()->findOrFail($request->task_list_id);
+
+        $task = Auth::user()->tasks()->create([
+            'name' => $request->name,
+            'task_list_id' => $list->id,
+            'position' => $list->tasks()->count(),
+        ]);
+
+        return response()->json($task);
+    }
+
     public function reorder(Request $request) 
     {
         $order = $request->order;
 
         foreach ($order as $index => $id) {
-            Task::where('id', $id)->update(['position' => $index]);
+            Auth::user()->tasks()
+                ->where('user_id', Auth::id())
+                ->update(['position' => $index]);
         }
 
         return response()->json(['success' => true]);
     }
 
-    public function destroy(Task $task) 
+    public function destroy($id) 
     {
-        $task->delete();
+        Auth::user()->tasks()->findOrFail($id)->delete();
 
         return response()->json(['success' => true]);
     }
 
     public function destroyAll($listId)
     {
-        Task::where('task_list_id', $listId)->delete();
+        $list = Auth::user()->ownedTaskLists()->findOrFail($listId);
+
+        $list->tasks()->where('user_id', Auth::id())->delete();
 
         return response()->json(['success' => true]);
     }

@@ -10,3 +10,29 @@
     --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
+
+.user-avatar {
+    width: 32px;
+    height: 32px;
+    object-fit: cover;
+    border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.2);
+}
+.navbar-brand {
+    font-weight: 600;
+    letter-spacing: -0.5px;
+}
+.dropdown-menu {
+    border-radius: 12px;
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+    border: none;
+    margin-top: 10px;
+    z-index: 2000;
+}
+.dropdown-item {
+    padding: 8px 20px;
+    font-size: 0.9rem;
+}
+.dropdown-item i {
+    width: 20px;
+}

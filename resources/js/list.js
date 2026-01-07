@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
+    const taskListContainer = document.getElementById('task-list');
     const listsContainer = document.getElementById('lists-container');
     const activeListInput = document.getElementById('active-list-id-input');
     const contextMenu = document.getElementById('context-menu');
@@ -29,6 +30,19 @@ function renderTab(list) {
 
         if (typeof window.updateRevertUI === 'function') {
             window.updateRevertUI(listId);
+        }
+
+        if (window.innerWidth < 768 && drawer.classList.contains('open')) {
+            setTimeout(() => {
+                const curentTasks = taskListContainer.querySelectorAll('.task-row').length;
+                if (curentTasks > 0) {
+                    drawer.classList.remove('open');
+                    if (drawerIcon ) {
+                        drawerIcon.classList.remove('rotate-icon', 'fa-chevron-up');
+                        drawerIcon.classList.add('fa-chevron-down');
+                    }
+                }
+            }, 300);
         }
     };
 
@@ -62,16 +76,21 @@ function renderTab(list) {
         listsContainer.appendChild(tab);
     }
 }
-    document.getElementById('toggle-favorite').onclick = () => {
+    document.getElementById('toggle-favorite').onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
         const id = contextMenu.dataset.selectedId;
         fetch(`/lists/${id}/toggle-favorite`, {
             method: 'POST',
             headers: { 
                 'X-CSRF-TOKEN': csrfToken,
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
             }
         }).then(res => {
             if (res.ok) {
+                contextMenu.dataset.selectedId = '';
                 location.reload(); 
             }
         });
@@ -181,12 +200,4 @@ function renderTab(list) {
             drawerIcon.classList.toggle('fa-chevron-up', isOpen);
         };
     }
-
-    document.addEventListener('click', (e) => {
-        if (e.target.classList.contains('list-tab') && window.innerWidth < 768) {
-            drawer.classList.remove('open');
-            drawerIcon.classList.remove('rotate-icon', 'fa-chevron-up');
-            drawerIcon.classList.add('fa-chevron-down');
-        }
-    });
 });
