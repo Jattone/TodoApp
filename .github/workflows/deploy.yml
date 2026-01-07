@@ -1,0 +1,71 @@
+name: Deploy
+
+on:
+    push:
+        branches:
+        - release
+
+jobs:
+    release:
+        runs-on: ubuntu-latest
+
+        steps:
+        - name: Checkout code
+          uses: actions/checkout@v4
+
+        - name: SCP files to server
+          uses: appleboy/scp-action@v0.1.7
+          with:
+            host: ${{ secrets.SERVER_HOST }}
+            username: ${{ secrets.SERVER_USER }}
+            key: ${{ secrets.SERVER_SSH_KEY }}
+            port: ${{ secrets.SERVER_SSH_PORT }}
+            source: "."
+            target: ${{ secrets.SERVER_TARGET_PATH }}
+
+        - name: SSH commands
+          uses: appleboy/ssh-action@master
+          with:
+            host: ${{ secrets.SERVER_HOST }}
+            username: ${{ secrets.SERVER_USER }}
+            key: ${{ secrets.SERVER_SSH_KEY }}
+            port: ${{ secrets.SERVER_SSH_PORT }}
+            script: |
+                cd ${{ secrets.SERVER_TARGET_PATH }}
+
+                touch -f ./database.sqlite
+
+                echo > .env
+                echo "APP_ENV=production" >> .env
+                echo "APP_DEBUG=false" >> .env
+                echo "APP_NAME=Tasker" >> .env
+                echo "APP_URL=${{ secrets.APP_URL }}" >> .env
+                echo "SERVER_NAME=${{ secrets.SERVER_NAME }}" >> .env
+                echo "APP_KEY=${{ secrets.APP_KEY }}" >> .env
+                echo "DB_CONNECTION=sqlite" >> .env
+                echo "DB_DATABASE=/var/www/html/database/database.sqlite" >> .env
+                echo "DB_FOREIGN_KEYS=true" >> .env
+                echo "CACHE_DRIVER=file" >> .env
+                echo "SESSION_DRIVER=file" >> .env
+                echo "QUEUE_DRIVER=sync" >> .env
+
+                docker build -t tasker:latest .
+                docker stop tasker || true
+                docker rm tasker || true
+
+                docker run -d \
+                    -p 80:80 \
+                    -p 443:443 \
+                    -p 443:443/udp \
+                    -v $PWD/caddy_data:/data \
+                    -v $PWD/caddy_config:/config \
+                    -v $PWD/storage:/var/www/html/storage \
+                    -v $PWD/database.sqlite:/var/www/html/database/database.sqlite \
+                    --env-file .env \
+                    --name tasker \
+                    tasker:latest
+
+                docker exec tasker php artisan storage:link
+                docker exec tasker php artisan migrate --force
+
+                docker system prune -f
