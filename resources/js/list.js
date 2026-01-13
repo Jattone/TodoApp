@@ -5,116 +5,125 @@ document.addEventListener('DOMContentLoaded', function() {
     const contextMenu = document.getElementById('context-menu');
     const createListBtn = document.getElementById('create-list-btn');
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    const currentUserId = document.querySelector('meta[name="user-id"]')?.content;
 
-    // --- TABS (LISTS) ---
-function renderTab(list) {
-    const tab = document.createElement('div');
-    tab.className = 'list-tab d-flex align-items-center';
-
-    const starIcon = list.is_favorite 
-        ? '<i class="fa-solid fa-star text-warning ms-2" style="font-size: 0.8rem;"></i>' 
-        : '';
-        
-    tab.innerHTML = `<span>${list.title}</span>${starIcon}`;
-    tab.dataset.id = list.id;
+    const drawer = document.getElementById('mobile-header-drawer');
+    const toggleBtn = document.getElementById('toggle-drawer-btn');
+    const drawerIcon = document.getElementById('drawer-icon');
     
-    tab.onclick = () => {
-        document.querySelectorAll('.list-tab').forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
+    // --- TABS (LISTS) ---
+    function renderTab(list, prepend = false) {
+        const tab = document.createElement('div');
+        const isShared = list.user_id != currentUserId;
+        tab.className = `list-tab d-flex align-items-center ${isShared ? 'shared-tab' : ''}`;
 
-        const listId = list.id;
-        activeListInput.value = listId;
-        localStorage.setItem('lastActiveListId', listId);
+        const starIcon = list.is_favorite ? '<i class="fa-solid fa-star text-warning ms-2" style="font-size: 0.8rem;"></i>' : '';
+        const sharedIcon = isShared ? '<i class="fa-solid fa-users text-purple ms-2" style="font-size: 0.7rem;"></i>' : '';
+
+        tab.innerHTML = `<span>${list.title}</span>${starIcon}${sharedIcon}`;
+        tab.dataset.id = list.id;
+        tab.dataset.shareToken = list.share_token;
+        tab.dataset.isFavorite = list.is_favorite ? "1" : "0";
         
-        if (window.loadTasks) window.loadTasks(listId);
+        tab.onclick = async (e) => {
+            document.querySelectorAll('.list-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
 
-        if (typeof window.updateRevertUI === 'function') {
-            window.updateRevertUI(listId);
-        }
+            const listId = list.id;
+            activeListInput.value = listId;
+            localStorage.setItem('lastActiveListId', listId);
 
-        if (window.innerWidth < 768 && drawer.classList.contains('open')) {
-            setTimeout(() => {
-                const curentTasks = taskListContainer.querySelectorAll('.task-row').length;
-                if (curentTasks > 0) {
-                    drawer.classList.remove('open');
-                    if (drawerIcon ) {
-                        drawerIcon.classList.remove('rotate-icon', 'fa-chevron-up');
-                        drawerIcon.classList.add('fa-chevron-down');
+            if (taskListContainer) taskListContainer.innerHTML = '';
+            
+            if (window.loadTasks) {
+                await window.loadTasks(listId);
+            }
+
+            if (typeof window.updateRevertUI === 'function') {
+                window.updateRevertUI(listId);
+            }
+
+            const isManualClick = e && e.isTrusted;
+            if (isManualClick && window.innerWidth < 768 && drawer && drawer.classList.contains('open')) {
+                setTimeout(() => {
+                    const currentTasks = taskListContainer.querySelectorAll('.task-row').length;
+                    if (currentTasks > 2) {
+                        drawer.classList.remove('open');
+                        if (drawerIcon) {
+                            drawerIcon.classList.remove('rotate-icon', 'fa-chevron-up');
+                            drawerIcon.classList.add('fa-chevron-down');
+                        }
                     }
+                    sessionStorage.removeItem('justCreatedListId')
+                }, 150);
+            } 
+        };
+
+        tab.oncontextmenu = (e) => {
+            e.preventDefault();
+            contextMenu.style.display = 'block';
+            contextMenu.style.position = 'fixed';
+            contextMenu.style.left = e.clientX + 'px';
+            contextMenu.style.top = e.clientY + 'px';
+            contextMenu.dataset.selectedId = list.id;
+            contextMenu.dataset.shareToken = list.share_token;
+            contextMenu.dataset.isFavorite = list.is_favorite;
+
+            const shareBtn = document.getElementById('share-list');
+                if (shareBtn) {
+                    shareBtn.style.display = isShared ? 'none' : 'block';
                 }
-            }, 300);
-        }
-    };
 
-    tab.oncontextmenu = (e) => {
-        e.preventDefault();
-        contextMenu.style.display = 'block';
-        contextMenu.style.position = 'fixed';
-        contextMenu.style.left = e.clientX + 'px';
-        contextMenu.style.top = e.clientY + 'px';
-        contextMenu.dataset.selectedId = list.id;
+            const favBtn = document.getElementById('toggle-favorite');
+            const favBtnSpan = favBtn.querySelector('span');
+            const favBtnIcon = favBtn.querySelector('i');
 
-        contextMenu.dataset.isFavorite = list.is_favorite;
+            if (tab.dataset.isFavorite === "1") {
+                favBtnSpan.innerText = 'Unpin';
+                favBtnIcon.className = 'fa-regular fa-star me-2 text-secondary';
+            } else {
+                favBtnSpan.innerText = 'Pin to Top';
+                favBtnIcon.className = 'fa-solid fa-star me-2 text-warning';
+            }
+        };
 
-        const favBtn = document.getElementById('toggle-favorite');
-        const favBtnSpan = favBtn.querySelector('span');
-        const favBtnIcon = favBtn.querySelector('i');
-
-        if (list.is_favorite == true || list.is_favorite == 1) {
-            favBtnSpan.innerText = 'Unpin';
-            favBtnIcon.className = 'fa-regular fa-star me-2 text-secondary';
+        // Sort favorites to top
+        if (prepend || list.is_favorite) {
+            listsContainer.prepend(tab);
         } else {
-            favBtnSpan.innerText = 'Pin to Top';
-            favBtnIcon.className = 'fa-solid fa-star me-2 text-warning';
+            listsContainer.appendChild(tab);
         }
-    };
-
-    // Sort favorites to top
-    if (list.is_favorite) {
-        listsContainer.prepend(tab);
-    } else {
-        listsContainer.appendChild(tab);
-    }
-}
-    document.getElementById('toggle-favorite').onclick = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-
-        const id = contextMenu.dataset.selectedId;
-        fetch(`/lists/${id}/toggle-favorite`, {
-            method: 'POST',
-            headers: { 
-                'X-CSRF-TOKEN': csrfToken,
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            }
-        }).then(res => {
-            if (res.ok) {
-                contextMenu.dataset.selectedId = '';
-                location.reload(); 
-            }
-        });
-    };
-
-    fetch('/lists').then(res => res.json()).then(data => {
-        listsContainer.innerHTML = '';
-        data.forEach(list => renderTab(list));
-        const savedId = localStorage.getItem('lastActiveListId');
-        const target = document.querySelector(`.list-tab[data-id="${savedId}"]`) || listsContainer.firstChild;
-        if (target) target.click();
-    });
-
-    const scrollContainer = document.querySelector("#lists-container");
-    if (scrollContainer) {
-        scrollContainer.addEventListener("wheel", (evt) => {
-            evt.preventDefault();
-            scrollContainer.scrollLeft += evt.deltaY;
-        });
+        return tab;
     }
 
+    // LISTS LOADING
+    function loadAllLists(targetId = null){
+        fetch('/lists')
+            .then(res => res.json())
+            .then(data => {
+                listsContainer.innerHTML = '';
+                data.forEach(list => renderTab(list));
+
+                const savedId = targetId || localStorage.getItem('lastActiveListId');
+                const target = document.querySelector(`.list-tab[data-id="${savedId}"]`) || listsContainer.firstChild;
+                if (target) {
+                    target.click()
+                    target.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center'});
+                }
+            });
+    }
+
+    //INIT
+    loadAllLists();
+
+    //CREATE LIST
     if (createListBtn) {
         createListBtn.onclick = async () => {
-            const { value: name } = await Swal.fire({ title: 'New List Name', input: 'text', showCancelButton: true });
+            const { value: name } = await Swal.fire({ 
+                title: 'New List Name', 
+                input: 'text', 
+                showCancelButton: true
+            });
             if (name) {
                 fetch('/lists', {
                     method: 'POST',
@@ -123,51 +132,60 @@ function renderTab(list) {
                 })
                 .then(res => res.json())
                 .then(newList => {
-                    renderTab(newList);
-                    const tabs = listsContainer.querySelectorAll('.list-tab');
-                    tabs[tabs.length - 1].click();
+                    const tab = renderTab(newList, true);
+                    tab.click();
                 });
             }
         };
     }
 
-    // --- CONTEXT MENU ---
-    document.addEventListener('click', () => contextMenu.style.display = 'none');
+    // TOGGLE FAVORITE
+    document.getElementById('toggle-favorite').onclick = () => {
+        const id = contextMenu.dataset.selectedId;
+        fetch(`/lists/${id}/toggle-favorite`, {
+            method: 'POST',
+            headers: { 
+                'X-CSRF-TOKEN': csrfToken,
+                'Content-Type': 'application/json'
+            }
+        }).then(res => {
+            if (res.ok) {
+                loadAllLists(id);
+            }    
+        });
+    };
 
+    // RENAME
     document.getElementById('edit-list-name').onclick = async () => {
         const id = contextMenu.dataset.selectedId;
         const tab = document.querySelector(`.list-tab[data-id="${id}"]`);
-        const currentName = tab.querySelector('span') ? tab.querySelector('span').innerText : tab.innerText;
+        const currentTitle = tab.querySelector('span').innerText;
+
         const { value: title } = await Swal.fire({
             title: 'Enter New Name',
             input: 'text',
-            inputValue: tab.innerText,
+            inputValue: currentTitle,
             showCancelButton: true 
         });
 
-        if (title) {
+        if (title && title !== currentTitle) {
             fetch(`/lists/${id}`, { 
                 method: 'PUT', 
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken }, 
                 body: JSON.stringify({ title: title }) 
             })
             .then(res => res.json())
-            .then(updatedList => {
-                const starIcon = updatedList.is_favorite 
-                    ? '<i class="fa-solid fa-star text-warning ms-2" style="font-size: 0.8rem;"></i>' 
-                    : '';
-                tab.innerHTML = `<span>${updatedList.title}</span>${starIcon}`;
+            .then(() => {
+                tab.querySelector('span').innerText =title;
             });
         }
     };
-
+    
+    // DELETE
     document.getElementById('delete-list').onclick = () => {
         const id = contextMenu.dataset.selectedId;
-        const tab = document.querySelector(`.list-tab[data-id="${id}"]`);
-        const listTitle = tab ? tab.innerText : 'this list';
-
-        Swal.fire({ 
-            title: `Delete list "${listTitle}"?`,
+        Swal.fire({
+            title: 'Delete list?',
             text: "All tasks in this list will be permanently removed!",
             icon: 'warning', 
             showCancelButton: true,
@@ -179,25 +197,70 @@ function renderTab(list) {
                     method: 'DELETE', 
                     headers: { 'X-CSRF-TOKEN': csrfToken } 
                 })
-                .then(() => {
-                    localStorage.removeItem('lastActiveListId');
-                    location.reload();
+                .then(async (response) => {
+                    if (!response.ok) return;
+                    const tabToDelete = document.querySelector(`.list-tab[data-id="${id}"]`);
+                    if (tabToDelete) {
+                        const nextTab = tabToDelete.nextElementSibling || tabToDelete.previousElementSibling;
+                        tabToDelete.remove();
+                        if (nextTab) {
+                            nextTab.click();
+                        } else {
+                            await loadAllLists();
+                        }
+                    }
                 });
             }
         });
     };
+    
+    // SHARE LIST
+    const shareBtn = document.getElementById('share-list');
+    if (shareBtn) {
+        shareBtn.onclick = () => {
+            const token = contextMenu.dataset.shareToken;
+            const shareUrl = `${window.location.origin}/share/${token}`;
+            const el = document.createElement('textarea');
+            if (!token) {
+                Swal.fire('Error', 'Share token not found', 'error');
+                return;
+            }
+
+            el.value = shareUrl;
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand('copy');
+            document.body.removeChild(el);
+
+            Swal.fire({
+                title: 'Link Copied!',
+                text: 'Send this link to share the list!',
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        };
+    }
+ 
+    // HORIZONTAL SCROLL    
+    const scrollContainer = document.querySelector("#lists-container");
+    if (scrollContainer) {
+        scrollContainer.addEventListener("wheel", (evt) => {
+            evt.preventDefault();
+            scrollContainer.scrollLeft += evt.deltaY;
+        }, { passive: false });
+    }
+ 
+    // --- CONTEXT MENU ---
+    document.addEventListener('click', () => contextMenu.style.display = 'none');
 
     // --- MOBILE DRAWER ---
-    const drawer = document.getElementById('mobile-header-drawer');
-    const toggleBtn = document.getElementById('toggle-drawer-btn');
-    const drawerIcon = document.getElementById('drawer-icon');
-
     if (toggleBtn) {
         toggleBtn.onclick = () => {
             const isOpen = drawer.classList.toggle('open');
-            drawerIcon.classList.toggle('rotate-icon');
-            drawerIcon.classList.toggle('fa-chevron-down', !isOpen);
+            drawerIcon.classList.toggle('rotate-icon', isOpen);
             drawerIcon.classList.toggle('fa-chevron-up', isOpen);
-        };
-    }
+            drawerIcon.classList.toggle('fa-chevron-down', !isOpen);
+        }
+    }   
 });

@@ -13,7 +13,14 @@ class TaskList extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['title', 'user_id', 'is_favorite'];
+    protected $fillable = ['title', 'user_id', 'share_token', 'is_favorite'];
+
+    protected static function booted()
+    {
+        static::creating(function ($list) {
+            $list->share_token = bin2hex(random_bytes(8));
+        });
+    }
 
     public function creator(): BelongsTo
     {

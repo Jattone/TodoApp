@@ -60,6 +60,10 @@
         <i class="fa-regular fa-star me-2 text-warning"></i><span>Pin to Top</span>
     </button>
     <div class="dropdown-divider"></div>
+    <button class="dropdown-item" id="share-list">
+        <i class="fa-solid fa-share-nodes me-2 text-primary"></i><span>Share List</span>
+    </button>
+    <div class="dropdown-divider"></div>
     <button class="dropdown-item" id="edit-list-name"><i class="fa-solid fa-pen me-2"></i>Rename</button>
     <button class="dropdown-item text-danger" id="delete-list"><i class="fa-solid fa-trash me-2"></i>Delete</button>
 </div>
