@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TaskListController;
 use App\Http\Controllers\Auth\TelegramController;
+use App\Http\Controllers\ShareController;
 
 Route::get('/', [TaskController::class, 'index'])->middleware('auth')->name('home');
 
@@ -25,7 +26,8 @@ Route::middleware('auth')->group(function () {
     Route::put('/lists/{id}', [TaskListController::class, 'update']);
     Route::delete('/lists/{id}', [TaskListController::class, 'destroy']);
     Route::post('/lists/{id}/toggle-favorite', [TaskListController::class, 'toggleFavorite']);
-
+    Route::get('share/{token}', [ShareController::class, 'join']);
+    
     Route::post('/logout', function () {
         Auth::logout();
         return redirect('/');

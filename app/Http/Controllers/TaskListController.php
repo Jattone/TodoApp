@@ -12,12 +12,18 @@ class TaskListController extends Controller
 {
     public function index()
     {
-        return response()->json(
-            Auth::user()->ownedTaskLists()
-                        ->orderBy('is_favorite', 'desc')
-                        ->orderBy('created_at', 'asc')
-                        ->get()
-        );
+        $user = Auth::user();
+
+        $lists = TaskList::where('user_id', $user->id)
+                    ->orWhereHas('members', function ($query) use ($user) {
+                        $query->where('user_id', $user->id);
+                    })
+                    ->withCount('tasks')
+                    ->orderBy('is_favorite', 'desc')
+                    ->orderBy('id', 'asc')
+                    ->get();
+
+        return response()->json($lists);
     }
 
     
@@ -27,8 +33,9 @@ class TaskListController extends Controller
             'title' => 'required|string|max:20'
         ]);
         
-        $list = Auth::user()->ownedTaskLists()->create([
+        $list = TaskList::create([
             'title' => $request->title,
+            'user_id' => Auth::id(),
             'is_favorite' => false,
         ]);
 
@@ -41,7 +48,7 @@ class TaskListController extends Controller
     
     public function toggleFavorite($id)
     {
-        $list = Auth::user()->ownedTaskLists()->findOrFail($id);
+        $list = $this->findListWithAccess($id);
 
         $list->is_favorite = !$list->is_favorite;
         $list->save();
@@ -55,7 +62,7 @@ class TaskListController extends Controller
             'title' => 'required|string|max:20'
         ]);
 
-        $list = Auth::user()->ownedTaskLists()->findOrFail($id);
+        $list = $this->findListWithAccess($id);
         $list->update(['title' => $request->title]);
 
         return response()->json($list);
@@ -63,12 +70,33 @@ class TaskListController extends Controller
 
     public function destroy($id)
     {
-        $list = Auth::user()->ownedTaskLists()->findOrFail($id);
+        $user = Auth::user();
+        $list = TaskList::findOrFail($id);
 
-        $list->tasks()->delete();
+        if ($list->user_id === $user->id) {
+            $list->tasks()->delete();
+            $list->delete();
+            return response()->json(['success' => true, 'message' => 'List was completely deleted']);
+        }
         
-        $list->delete();
+        if ($list->members()->where('user_id', $user->id)->exists()) {
+            $list->members()->detach($user->id);
+            return response()->json(['success' => true, 'message' => 'You successfully leave the list']);
+        }
 
-        return response()->json(['success' => true]);
+        return response()->json(['error' => 'You have no rights to do this, champ'], 403);
+    }
+
+    private function findListWithAccess($id)
+    {
+        $user = Auth::user();
+
+        return TaskList::where('id', $id)
+            ->where(function ($query) use ($user) {
+                $query->where('user_id', $user->id)
+                      ->orWhereHas('members', function ($q) use ($user) {
+                        $q->where('user_id', $user->id);
+                      });
+            })->firstOrFail();
     }
 }

@@ -16,10 +16,9 @@ class TaskController extends Controller
 
     public function getByList($listId) 
     {
-        $list = Auth::user()->ownedTaskLists()->findOrFail($listId);
+        $list = $this->findListWithAccess($listId);
 
         $tasks = $list->tasks()
-            ->where('user_id', Auth::id())
             ->orderBy('position', 'asc')
             ->orderBy('created_at', 'desc')
             ->get();
@@ -31,13 +30,17 @@ class TaskController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'task_list_id' => 'required|exists:task_lists,id', 
+            'task_list_id' => 'required', 
         ]);
+        
 
-        $list = Auth::user()->ownedTaskLists()->findOrFail($request->task_list_id);
+        $listId = $request->input('task_list_id');
 
-        $task = Auth::user()->tasks()->create([
+        $list = $this->findListWithAccess($listId);
+
+        $task = $list->tasks()->create([
             'name' => $request->name,
+            'user_id' => Auth::id(),
             'task_list_id' => $list->id,
             'position' => $list->tasks()->count(),
         ]);
@@ -47,12 +50,23 @@ class TaskController extends Controller
 
     public function reorder(Request $request) 
     {
+        $request->validate([
+            'order' => 'required|array',
+            'order.*' => 'required|exists:tasks,id'
+        ]);
+
         $order = $request->order;
 
+        $firstTask = Task::find($order[0]);
+        if (!$firstTask) return response()->json(['error' => 'There is no tasks'], 404);
+        
+        $listId = $firstTask->task_list_id;
+        $this->findListWithAccess($listId);
+
         foreach ($order as $index => $id) {
-            Auth::user()->tasks()
-                ->where('user_id', Auth::id())
-                ->update(['position' => $index]);
+                Task::where('id', $id)
+                    ->where('task_list_id', $listId)
+                    ->update(['position' => $index]);
         }
 
         return response()->json(['success' => true]);
@@ -60,17 +74,34 @@ class TaskController extends Controller
 
     public function destroy($id) 
     {
-        Auth::user()->tasks()->findOrFail($id)->delete();
+        $task = Task::findOrFail($id);
+        
+        $this->findListWithAccess($task->task_list_id);
 
+        $task->delete();
         return response()->json(['success' => true]);
     }
 
     public function destroyAll($listId)
     {
-        $list = Auth::user()->ownedTaskLists()->findOrFail($listId);
+        $list = $this->findListWithAccess($listId);
 
-        $list->tasks()->where('user_id', Auth::id())->delete();
+        $list->tasks()->delete();
 
         return response()->json(['success' => true]);
+    }
+
+    private function findListWithAccess($listId)
+    {
+        $user = Auth::user();
+
+        return TaskList::where('id', $listId)
+            ->where(function ($query) use ($user) {
+                $query->where('user_id', $user->id)
+                      ->orWhereHas('members', function ($q) use ($user) {
+                          $q->where('user_id', $user->id);
+                      });
+            })
+            ->firstOrFail();
     }
 }
