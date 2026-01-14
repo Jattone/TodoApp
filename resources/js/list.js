@@ -15,7 +15,11 @@ document.addEventListener('DOMContentLoaded', function() {
     function renderTab(list, prepend = false) {
         const tab = document.createElement('div');
         const isShared = list.user_id != currentUserId;
+
         tab.className = `list-tab d-flex align-items-center ${isShared ? 'shared-tab' : ''}`;
+        tab.style.webkitUserSelect = 'none';
+        tab.style.userSelect = 'none';
+        tab.style.webkitTouchCallout = 'none';
 
         const starIcon = list.is_favorite ? '<i class="fa-solid fa-star text-warning ms-2" style="font-size: 0.8rem;"></i>' : '';
         const sharedIcon = isShared ? '<i class="fa-solid fa-users text-purple ms-2" style="font-size: 0.7rem;"></i>' : '';
@@ -24,8 +28,32 @@ document.addEventListener('DOMContentLoaded', function() {
         tab.dataset.id = list.id;
         tab.dataset.shareToken = list.share_token;
         tab.dataset.isFavorite = list.is_favorite ? "1" : "0";
+
+        let pressTimer;
+        let isLongPress = false;
+
+        const startPress = (e) => {
+            isLongPress = false;
+            pressTimer = setTimeout(() => {
+                isLongPress = true;
+                showContextMenu(e, list, tab);
+            }, 600);
+        };
+
+        const cancelPress = (e) => {
+            clearTimeout(pressTimer);
+        };
+
+        tab.addEventListener('touchstart', startPress, { passive: true });
+        tab.addEventListener('touchend', cancelPress);
+        tab.addEventListener('touchmove', cancelPress);
         
         tab.onclick = async (e) => {
+            if (isLongPress) {
+                isLongPress = false;
+                return;
+            }
+
             document.querySelectorAll('.list-tab').forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
 
@@ -56,37 +84,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     sessionStorage.removeItem('justCreatedListId')
                 }, 150);
-            } 
+            }
         };
 
         tab.oncontextmenu = (e) => {
             e.preventDefault();
-            contextMenu.style.display = 'block';
-            contextMenu.style.position = 'fixed';
-            contextMenu.style.left = e.clientX + 'px';
-            contextMenu.style.top = e.clientY + 'px';
-            contextMenu.dataset.selectedId = list.id;
-            contextMenu.dataset.shareToken = list.share_token;
-            contextMenu.dataset.isFavorite = list.is_favorite;
-
-            const shareBtn = document.getElementById('share-list');
-                if (shareBtn) {
-                    shareBtn.style.display = isShared ? 'none' : 'block';
-                }
-
-            const favBtn = document.getElementById('toggle-favorite');
-            const favBtnSpan = favBtn.querySelector('span');
-            const favBtnIcon = favBtn.querySelector('i');
-
-            if (tab.dataset.isFavorite === "1") {
-                favBtnSpan.innerText = 'Unpin';
-                favBtnIcon.className = 'fa-regular fa-star me-2 text-secondary';
-            } else {
-                favBtnSpan.innerText = 'Pin to Top';
-                favBtnIcon.className = 'fa-solid fa-star me-2 text-warning';
-            }
+            showContextMenu(e, list, tab);
         };
-
+        
         // Sort favorites to top
         if (prepend || list.is_favorite) {
             listsContainer.prepend(tab);
@@ -95,6 +100,43 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         return tab;
     }
+
+    function showContextMenu(e, list, tabElement) {
+        let clientX, clientY;
+        if (e.touches && e.touches.length > 0) {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
+        }
+
+        contextMenu.style.display = 'block';
+        contextMenu.style.position = 'fixed';
+        contextMenu.style.left = clientX + 'px';
+        contextMenu.style.top = clientY + 'px';
+        contextMenu.dataset.selectedId = list.id;
+        contextMenu.dataset.shareToken = list.share_token;
+        contextMenu.dataset.isFavorite = tabElement.dataset.isFavorite;
+
+        const isShared = list.user_id != currentUserId;
+        const shareBtn = document.getElementById('share-list');
+            if (shareBtn) {
+                shareBtn.style.display = isShared ? 'none' : 'block';
+            }
+
+        const favBtn = document.getElementById('toggle-favorite');
+        const favBtnSpan = favBtn.querySelector('span');
+        const favBtnIcon = favBtn.querySelector('i');
+
+        if (tabElement.dataset.isFavorite === "1") {
+            favBtnSpan.innerText = 'Unpin';
+            favBtnIcon.className = 'fa-regular fa-star me-2 text-secondary';
+        } else {
+            favBtnSpan.innerText = 'Pin to Top';
+            favBtnIcon.className = 'fa-solid fa-star me-2 text-warning';
+        }
+    };
 
     // LISTS LOADING
     function loadAllLists(targetId = null){
@@ -151,7 +193,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }).then(res => {
             if (res.ok) {
                 loadAllLists(id);
-            }    
+            }
         });
     };
 
@@ -213,7 +255,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     };
-    
+
     // SHARE LIST
     const shareBtn = document.getElementById('share-list');
     if (shareBtn) {
@@ -221,11 +263,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const token = contextMenu.dataset.shareToken;
             const shareUrl = `${window.location.origin}/share/${token}`;
             const el = document.createElement('textarea');
-            if (!token) {
-                Swal.fire('Error', 'Share token not found', 'error');
-                return;
-            }
-
             el.value = shareUrl;
             document.body.appendChild(el);
             el.select();
@@ -243,11 +280,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
  
     // HORIZONTAL SCROLL    
-    const scrollContainer = document.querySelector("#lists-container");
-    if (scrollContainer) {
-        scrollContainer.addEventListener("wheel", (evt) => {
+    if (listsContainer) {
+        listsContainer.addEventListener("wheel", (evt) => {
             evt.preventDefault();
-            scrollContainer.scrollLeft += evt.deltaY;
+            listsContainer.scrollLeft += evt.deltaY;
         }, { passive: false });
     }
  
