@@ -8,7 +8,7 @@
             <div class="card border-0 shadow-sm"> 
                 <div class="card-header bg-white py-3 d-flex align-items-center justify-content-between overflow-hidden">
                     <div id="lists-container" class="d-flex gap-2 align-items-center overflow-auto me-2"></div>
-                    <button type="button" id="create-list-btn" class="btn btn-sm btn-light border shadow-sm px-3 fw-bold text-primary flex-shrink-0">
+                    <button type="button" id="create-list-btn" class="btn btn-sm btn-light border shadow-sm px-3 fw-bold flex-shrink-0">
                         <i class="fa-solid fa-plus"></i>
                         <span class="d-none d-md-inline ms-1">New List</span>
                     </button>
