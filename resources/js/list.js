@@ -10,9 +10,43 @@ document.addEventListener('DOMContentLoaded', function() {
     const drawer = document.getElementById('mobile-header-drawer');
     const toggleBtn = document.getElementById('toggle-drawer-btn');
     const drawerIcon = document.getElementById('drawer-icon');
+    const LONG_PRESS_DURATION = 600;
+
+    // --- API HELPER ---
+    async function apiRequest(url, method = 'GET', body = null) {
+        const options = {
+            method,
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json'
+            }
+        };
+
+        if (body) {
+            options.body = JSON.stringify(body);
+        }
+
+        try {
+            const response = await fetch(url, options);
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ message: 'An unknown error occurred' }));
+                throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+            }
+            if (response.status === 204 || response.headers.get('content-length') === '0') {
+                return null;
+            }
+            return response.json();
+        } catch (error) {
+            console.error('API Request Failed:', error);
+            Swal.fire('Error', error.message || 'An unexpected error occurred. Please try again.', 'error');
+            throw error;
+        }
+    }
+    
     
     // --- TABS (LISTS) ---
-    function renderTab(list, prepend = false) {
+    function renderTab(list) {
         const tab = document.createElement('div');
         const isShared = list.user_id != currentUserId;
 
@@ -37,10 +71,10 @@ document.addEventListener('DOMContentLoaded', function() {
             pressTimer = setTimeout(() => {
                 isLongPress = true;
                 showContextMenu(e, list, tab);
-            }, 600);
+            }, LONG_PRESS_DURATION);
         };
 
-        const cancelPress = (e) => {
+        const cancelPress = () => {
             clearTimeout(pressTimer);
         };
 
@@ -48,7 +82,7 @@ document.addEventListener('DOMContentLoaded', function() {
         tab.addEventListener('touchend', cancelPress);
         tab.addEventListener('touchmove', cancelPress);
         
-        tab.onclick = async (e) => {
+        tab.addEventListener('click', async (e) => {
             if (isLongPress) {
                 isLongPress = false;
                 return;
@@ -85,15 +119,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     sessionStorage.removeItem('justCreatedListId')
                 }, 150);
             }
-        };
+        });
 
-        tab.oncontextmenu = (e) => {
+        tab.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             showContextMenu(e, list, tab);
-        };
+        });
         
         // Sort favorites to top
-        if (prepend || list.is_favorite) {
+        if (list.is_favorite) {
             listsContainer.prepend(tab);
         } else {
             listsContainer.appendChild(tab);
@@ -139,20 +173,21 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     // LISTS LOADING
-    function loadAllLists(targetId = null){
-        fetch('/lists')
-            .then(res => res.json())
-            .then(data => {
-                listsContainer.innerHTML = '';
-                data.forEach(list => renderTab(list));
+    async function loadAllLists(targetId = null){
+        try {
+            const data = await apiRequest('/lists');
+            listsContainer.innerHTML = '';
+            data.forEach(list => renderTab(list));
 
-                const savedId = targetId || localStorage.getItem('lastActiveListId');
-                const target = document.querySelector(`.list-tab[data-id="${savedId}"]`) || listsContainer.firstChild;
-                if (target) {
-                    target.click()
-                    target.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center'});
-                }
-            });
+            const savedId = targetId || localStorage.getItem('lastActiveListId');
+            const target = document.querySelector(`.list-tab[data-id="${savedId}"]`) || listsContainer.firstChild;
+            if (target) {
+                target.click();
+                target.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center'});
+            }
+        } catch (error) {
+            // Error is handled by apiRequest
+        }
     }
 
     //INIT
@@ -160,45 +195,40 @@ document.addEventListener('DOMContentLoaded', function() {
 
     //CREATE LIST
     if (createListBtn) {
-        createListBtn.onclick = async () => {
+        createListBtn.addEventListener('click', async () => {
             const { value: name } = await Swal.fire({ 
                 title: 'New List Name', 
                 input: 'text', 
                 showCancelButton: true
             });
             if (name) {
-                fetch('/lists', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
-                    body: JSON.stringify({ title: name })
-                })
-                .then(res => res.json())
-                .then(newList => {
-                    const tab = renderTab(newList, true);
-                    tab.click();
-                });
+                try {
+                    const newList = await apiRequest('/lists', 'POST', { title: name });
+                    if (newList) {
+                        const tab = renderTab(newList);
+                        tab.click();
+                        tab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                    }
+                } catch (error) {
+                    // Error is handled by apiRequest
+                }
             }
-        };
+        });
     }
 
     // TOGGLE FAVORITE
-    document.getElementById('toggle-favorite').onclick = () => {
+    document.getElementById('toggle-favorite').addEventListener('click', async () => {
         const id = contextMenu.dataset.selectedId;
-        fetch(`/lists/${id}/toggle-favorite`, {
-            method: 'POST',
-            headers: { 
-                'X-CSRF-TOKEN': csrfToken,
-                'Content-Type': 'application/json'
-            }
-        }).then(res => {
-            if (res.ok) {
-                loadAllLists(id);
-            }
-        });
-    };
+        try {
+            await apiRequest(`/lists/${id}/toggle-favorite`, 'POST');
+            loadAllLists(id);
+        } catch (error) {
+            // Error is handled by apiRequest
+        }
+    });
 
     // RENAME
-    document.getElementById('edit-list-name').onclick = async () => {
+    document.getElementById('edit-list-name').addEventListener('click', async () => {
         const id = contextMenu.dataset.selectedId;
         const tab = document.querySelector(`.list-tab[data-id="${id}"]`);
         const currentTitle = tab.querySelector('span').innerText;
@@ -211,20 +241,17 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         if (title && title !== currentTitle) {
-            fetch(`/lists/${id}`, { 
-                method: 'PUT', 
-                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken }, 
-                body: JSON.stringify({ title: title }) 
-            })
-            .then(res => res.json())
-            .then(() => {
-                tab.querySelector('span').innerText =title;
-            });
+            try {
+                await apiRequest(`/lists/${id}`, 'PUT', { title: title });
+                tab.querySelector('span').innerText = title;
+            } catch (error) {
+                // Error is handled by apiRequest
+            }
         }
-    };
+    });
     
     // DELETE
-    document.getElementById('delete-list').onclick = () => {
+    document.getElementById('delete-list').addEventListener('click', () => {
         const id = contextMenu.dataset.selectedId;
         Swal.fire({
             title: 'Delete list?',
@@ -233,14 +260,10 @@ document.addEventListener('DOMContentLoaded', function() {
             showCancelButton: true,
             confirmButtonColor: '#ef4444',
             confirmButtonText: 'Yes, delete it!'
-        }).then(res => {
+        }).then(async (res) => {
             if (res.isConfirmed) {
-                fetch(`/lists/${id}`, { 
-                    method: 'DELETE', 
-                    headers: { 'X-CSRF-TOKEN': csrfToken } 
-                })
-                .then(async (response) => {
-                    if (!response.ok) return;
+                try {
+                    await apiRequest(`/lists/${id}`, 'DELETE');
                     const tabToDelete = document.querySelector(`.list-tab[data-id="${id}"]`);
                     if (tabToDelete) {
                         const nextTab = tabToDelete.nextElementSibling || tabToDelete.previousElementSibling;
@@ -248,35 +271,38 @@ document.addEventListener('DOMContentLoaded', function() {
                         if (nextTab) {
                             nextTab.click();
                         } else {
-                            await loadAllLists();
+                            listsContainer.innerHTML = '';
+                            if (taskListContainer) taskListContainer.innerHTML = '';
+                            activeListInput.value = '';
+                            localStorage.removeItem('lastActiveListId');
                         }
                     }
-                });
+                } catch (error) {
+                }
             }
         });
-    };
+    });
 
     // SHARE LIST
     const shareBtn = document.getElementById('share-list');
     if (shareBtn) {
-        shareBtn.onclick = () => {
+        shareBtn.addEventListener('click', () => {
             const token = contextMenu.dataset.shareToken;
             const shareUrl = `${window.location.origin}/share/${token}`;
-            const el = document.createElement('textarea');
-            el.value = shareUrl;
-            document.body.appendChild(el);
-            el.select();
-            document.execCommand('copy');
-            document.body.removeChild(el);
-
-            Swal.fire({
-                title: 'Link Copied!',
-                text: 'Send this link to share the list!',
-                icon: 'success',
-                timer: 2000,
-                showConfirmButton: false
+            
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                Swal.fire({
+                    title: 'Link Copied!',
+                    text: 'Send this link to share the list!',
+                    icon: 'success',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+                Swal.fire('Error', 'Could not copy the link.', 'error');
             });
-        };
+        });
     }
  
     // HORIZONTAL SCROLL    
@@ -292,11 +318,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- MOBILE DRAWER ---
     if (toggleBtn) {
-        toggleBtn.onclick = () => {
+        toggleBtn.addEventListener('click', () => {
             const isOpen = drawer.classList.toggle('open');
             drawerIcon.classList.toggle('rotate-icon', isOpen);
             drawerIcon.classList.toggle('fa-chevron-up', isOpen);
             drawerIcon.classList.toggle('fa-chevron-down', !isOpen);
-        }
+        });
     }   
 });

@@ -33,23 +33,20 @@
                         </div>
                     @endif
                 </a>
-
-                <ul class="dropdown-menu dropdown-menu-end animate__animated animate__fadeIn animate__faster" aria-labelledby="userDropdown">
-                    <li class="px-3 py-2 border-bottom">
-                        <div class="text-xs text-muted">ID</div>
-                        <div class="fw-bold" style="font-size: 0.8rem;">{{ Auth::user()->telegram_id }}</div>
-                    </li>
+                <ul id="user-profile-menu" class="dropdown-menu dropdown-menu-end animate__animated animate__fadeIn animate__faster" aria-labelledby="userDropdown">
                     <li>
-                        <a class="dropdown-item mt-2" href="#">
-                            <i class="fa-solid fa-user-gear me-2 text-muted"></i> Settings
-                        </a>
+                        <button id="theme-toggle-btn" class="dropdown-item">
+                            <i id="theme-icon" class="fa-solid fa-moon"></i>
+                            <span id="theme-text">Dark Mode</span>
+                        </button>
                     </li>
                     <li><hr class="dropdown-divider"></li>
                     <li>
                         <form action="{{ route('logout') }}" method="POST" id="logout-form">
                             @csrf
-                            <button type="submit" class="dropdown-item text-danger">
-                                <i class="fa-solid fa-right-from-bracket me-2"></i> LogOut
+                            <button type="submit" class="dropdown-item logout-btn">
+                                <i class="fa-solid fa-right-from-bracket"></i>
+                                <span>LogOut</span>
                             </button>
                         </form>
                     </li>
