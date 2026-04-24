@@ -27,12 +27,12 @@ class User extends Authenticatable
         'photo_url',
     ];
 
-    public function ownedTaskLists() : HasMany
+    public function taskLists() : HasMany
     {
         return $this->hasMany(TaskList::class);
     }
 
-    public function sharedTaskLists() : HasMany
+    public function sharedTaskLists() : BelongsToMany
     {
         return $this->belongsToMany(TaskList::class, 'task_list_user')
                     ->withPivot('role')
