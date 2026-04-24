@@ -1,3 +1,5 @@
+import { GuestManager } from "./GuestManager";
+
 document.addEventListener('DOMContentLoaded', function() {
     const taskListContainer = document.getElementById('task-list');
     const listsContainer = document.getElementById('lists-container');
@@ -48,17 +50,44 @@ document.addEventListener('DOMContentLoaded', function() {
     // --- TABS (LISTS) ---
     function renderTab(list) {
         const tab = document.createElement('div');
-        const isShared = list.user_id != currentUserId;
+        const isShared = window.isAuthenticated ? (list.user_id != currentUserId) : false;
 
         tab.className = `list-tab d-flex align-items-center ${isShared ? 'shared-tab' : ''}`;
-        tab.style.webkitUserSelect = 'none';
         tab.style.userSelect = 'none';
         tab.style.webkitTouchCallout = 'none';
 
-        const starIcon = list.is_favorite ? '<i class="fa-solid fa-star text-warning ms-2" style="font-size: 0.8rem;"></i>' : '';
-        const sharedIcon = isShared ? '<i class="fa-solid fa-users text-purple ms-2" style="font-size: 0.7rem;"></i>' : '';
+        let avatarHtml = '';
+        if (isShared && list.creator) {
+            if (list.creator.photo_url) {
+                avatarHtml = `
+                    <img src="${list.creator.photo_url}" 
+                        class="rounded-circle me-2 border border-1 border-primary" 
+                        style="width: 22px; height: 22px; object-fit: cover;" 
+                        title="Owner: ${list.creator.name}">
+                `;
+            } else {
+                const initial = (list.creator.name && list.creator.name.length > 0) 
+                    ? list.creator.name[0].toUpperCase() 
+                    : '?';
+                avatarHtml = `
+                    <div class="rounded-circle me-2 d-flex align-items-center justify-content-center bg-primary text-white fw-bold shadow-sm" 
+                        style="width: 22px; height: 22px; font-size: 11px;" 
+                        title="Owner: ${list.creator.name}">
+                        ${initial}
+                    </div>
+                `;
+            }
+        }
 
-        tab.innerHTML = `<span>${list.title}</span>${starIcon}${sharedIcon}`;
+        const starIcon = list.is_favorite ? '<i class="fa-solid fa-star text-warning ms-2" style="font-size: 0.8rem;"></i>' : '';
+        tab.innerHTML = `
+            <div class="d-flex align-items-center overflow-hidden">
+                ${avatarHtml}
+                <span class="text-truncate">${list.title}</span>
+            </div>
+            ${starIcon}
+        `;
+
         tab.dataset.id = list.id;
         tab.dataset.shareToken = list.share_token;
         tab.dataset.isFavorite = list.is_favorite ? "1" : "0";
@@ -154,6 +183,20 @@ document.addEventListener('DOMContentLoaded', function() {
         contextMenu.dataset.isFavorite = tabElement.dataset.isFavorite;
 
         const isShared = list.user_id != currentUserId;
+        contextMenu.dataset.isShared = isShared ? "1" : "0";
+
+        const deleteBtn = document.getElementById('delete-list');
+        const deleteBtnSpan = deleteBtn.querySelector('span');
+        const deleteBtnIcon = deleteBtn.querySelector('i');
+
+        if (isShared) {
+            deleteBtnSpan.innerText = 'Leave List';
+            deleteBtnIcon.className = 'fa-solid fa-right-from-bracket me-2 text-danger';
+        } else {
+            deleteBtnSpan.innerText = 'Delete List';
+            deleteBtnIcon.className = 'fa-solid fa-trash me-2 text-danger';
+        }
+
         const shareBtn = document.getElementById('share-list');
             if (shareBtn) {
                 shareBtn.style.display = isShared ? 'none' : 'block';
@@ -174,24 +217,38 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // LISTS LOADING
     async function loadAllLists(targetId = null){
-        try {
-            const data = await apiRequest('/lists');
-            listsContainer.innerHTML = '';
-            data.forEach(list => renderTab(list));
+        listsContainer.innerHTML = '';
 
-            const savedId = targetId || localStorage.getItem('lastActiveListId');
-            const target = document.querySelector(`.list-tab[data-id="${savedId}"]`) || listsContainer.firstChild;
-            if (target) {
-                target.click();
-                target.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center'});
+        if (!window.isAuthenticated) {
+            const guestLists = GuestManager.getLists();
+            if (guestLists.length === 0) {
+                const defaultList = GuestManager.saveList('My First List');
+                guestLists.push(defaultList);
             }
-        } catch (error) {
-            // Error is handled by apiRequest
-        }
+            guestLists.forEach(list => renderTab(list));
+            finalizeListLoading(targetId);
+            } else {
+                try {
+                    const data = await apiRequest('/lists');
+                    if (data) {
+                        data.forEach(list => renderTab(list));
+                        finalizeListLoading(targetId);
+                    }
+                } catch (error) {
+                    console.error('Failed to load lists:', error);
+                }
+            }
     }
 
-    //INIT
-    loadAllLists();
+    function finalizeListLoading(targetId) {
+        const savedId = targetId || localStorage.getItem('lastActiveListId');
+        const target = document.querySelector(`.list-tab[data-id="${savedId}"]`) || listsContainer.firstChild;
+
+        if (target) {
+            target.click();
+            target.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center'});
+        }
+    }
 
     //CREATE LIST
     if (createListBtn) {
@@ -202,15 +259,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 showCancelButton: true
             });
             if (name) {
+                if (!window.isAuthenticated) {
+                    const newList = GuestManager.saveList(name);
+                    renderTab(newList).click();
+                    return;
+                }
                 try {
                     const newList = await apiRequest('/lists', 'POST', { title: name });
-                    if (newList) {
-                        const tab = renderTab(newList);
-                        tab.click();
-                        tab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                    }
+                    if (newList) renderTab(newList).click();
                 } catch (error) {
-                    // Error is handled by apiRequest
+                    console.error('Failed to create list:', error);
                 }
             }
         });
@@ -219,12 +277,15 @@ document.addEventListener('DOMContentLoaded', function() {
     // TOGGLE FAVORITE
     document.getElementById('toggle-favorite').addEventListener('click', async () => {
         const id = contextMenu.dataset.selectedId;
+        if (!window.isAuthenticated) {
+            GuestManager.toggleFavorite(id);
+            loadAllLists(id);
+            return;
+        }
         try {
             await apiRequest(`/lists/${id}/toggle-favorite`, 'POST');
             loadAllLists(id);
-        } catch (error) {
-            // Error is handled by apiRequest
-        }
+        } catch (error) { console.error('Failed to toggle favorite:', error); }
     });
 
     // RENAME
@@ -241,11 +302,16 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         if (title && title !== currentTitle) {
+            if (!window.isAuthenticated) {
+                GuestManager.renameList(id, title);
+                tab.querySelector('span').innerText = title;
+                return;
+            }
             try {
                 await apiRequest(`/lists/${id}`, 'PUT', { title: title });
                 tab.querySelector('span').innerText = title;
             } catch (error) {
-                // Error is handled by apiRequest
+                console.error('Failed to update list:', error);
             }
         }
     });
@@ -253,40 +319,81 @@ document.addEventListener('DOMContentLoaded', function() {
     // DELETE
     document.getElementById('delete-list').addEventListener('click', () => {
         const id = contextMenu.dataset.selectedId;
+        const isShared = contextMenu.dataset.isShared === "1";
+        const listTab = document.querySelector(`.list-tab[data-id="${id}"]`);
+        const listTitle = listTab ? listTab.querySelector('span').innerText : 'this list';
+
+        const config = {
+            title: isShared ? `Leave "${listTitle}"?` : `Delete "${listTitle}"?`,
+            text: isShared 
+                ? 'Are you sure you want to leave this list? The owner will keep it.' 
+                : 'All tasks in this list will be permanently removed!',
+            confirmText: isShared ? 'Yes, leave it!' : 'Yes, delete it!',
+            successMessage: isShared ? 'You have left the list.' : 'List deleted.'
+        }
+
         Swal.fire({
-            title: 'Delete list?',
-            text: "All tasks in this list will be permanently removed!",
+            title: config.title,
+            text: config.text,
             icon: 'warning', 
             showCancelButton: true,
             confirmButtonColor: '#ef4444',
-            confirmButtonText: 'Yes, delete it!'
+            confirmButtonText: config.confirmText
         }).then(async (res) => {
             if (res.isConfirmed) {
+                if (!window.isAuthenticated) {
+                    GuestManager.deleteList(id);
+                    finalizeTabRemoval(id);
+                    return;
+                }
                 try {
                     await apiRequest(`/lists/${id}`, 'DELETE');
-                    const tabToDelete = document.querySelector(`.list-tab[data-id="${id}"]`);
-                    if (tabToDelete) {
-                        const nextTab = tabToDelete.nextElementSibling || tabToDelete.previousElementSibling;
-                        tabToDelete.remove();
-                        if (nextTab) {
-                            nextTab.click();
-                        } else {
-                            listsContainer.innerHTML = '';
-                            if (taskListContainer) taskListContainer.innerHTML = '';
-                            activeListInput.value = '';
-                            localStorage.removeItem('lastActiveListId');
-                        }
-                    }
-                } catch (error) {
+                    finalizeTabRemoval(id);
+                } catch (error) {  
+                    console.error('Failed to delete list:', error);
                 }
             }
         });
     });
 
+    function finalizeTabRemoval(id) {
+        const tabToDelete = document.querySelector(`.list-tab[data-id="${id}"]`);
+        if (tabToDelete) {
+            const nextTab = tabToDelete.nextElementSibling || tabToDelete.previousElementSibling;
+            tabToDelete.remove();
+            if (nextTab) {
+                nextTab.click();
+            } else {
+                listsContainer.innerHTML = '';
+                if (taskListContainer) taskListContainer.innerHTML = '';
+                activeListInput.value = '';
+                localStorage.removeItem('lastActiveListId');
+                loadAllLists();
+            }
+        }
+    }
+
     // SHARE LIST
     const shareBtn = document.getElementById('share-list');
     if (shareBtn) {
         shareBtn.addEventListener('click', () => {
+            if (!window.isAuthenticated) {
+                Swal.fire({
+                    title: 'Do you want to share this list?',
+                    text: 'Only authorised users can share lists. Please Log in to use this feature.',
+                    icon: 'info',
+                    showCancelButton: true,
+                    confirmButtonText: 'LogIn via Telegram',
+                    cancelButtonText: 'Maybe later',
+                    confirmButtonColor: '#25eb8fff'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        window.location.href = '/login';
+                    }
+                });
+                return;
+            }
+
             const token = contextMenu.dataset.shareToken;
             const shareUrl = `${window.location.origin}/share/${token}`;
             
@@ -324,5 +431,8 @@ document.addEventListener('DOMContentLoaded', function() {
             drawerIcon.classList.toggle('fa-chevron-up', isOpen);
             drawerIcon.classList.toggle('fa-chevron-down', !isOpen);
         });
-    }   
+    } 
+    
+    //INIT
+    loadAllLists();
 });

@@ -8,8 +8,15 @@ use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TaskListController;
 use App\Http\Controllers\Auth\TelegramController;
 use App\Http\Controllers\ShareController;
+use App\Http\Controllers\SyncController;
 
-Route::get('/', [TaskController::class, 'index'])->middleware('auth')->name('home');
+Route::get('/', [TaskController::class, 'index'])->name('home');
+
+// Telegram Authentication
+Route::get('/login', function () {
+    return view('auth.login');
+})->name('login')->middleware('guest');
+Route::get('/auth/telegram/callback', [TelegramController::class, 'handleTelegramCallback']);
 
 Route::middleware('auth')->group(function () {
 
@@ -26,18 +33,13 @@ Route::middleware('auth')->group(function () {
     Route::put('/lists/{id}', [TaskListController::class, 'update']);
     Route::delete('/lists/{id}', [TaskListController::class, 'destroy']);
     Route::post('/lists/{id}/toggle-favorite', [TaskListController::class, 'toggleFavorite']);
-    Route::get('share/{token}', [ShareController::class, 'join']);
     
+    Route::post('/sync', [SyncController::class, 'sync']);
+    Route::get('/api/user-lists-names', [SyncController::class, 'getUserListsNames']);
+    Route::get('share/{token}', [ShareController::class, 'join']);
     Route::post('/logout', function () {
         Auth::logout();
         return redirect('/');
     })->name('logout');
 
 });
-
-// Telegram Authentication
-Route::get('/login', function () {
-    return view('auth.login');
-})->name('login')->middleware('guest');
-
-Route::get('/auth/telegram/callback', [TelegramController::class, 'handleTelegramCallback']);

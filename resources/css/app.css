@@ -49,7 +49,7 @@
     /* Slate Color Palette (Light Theme) */
     --bg-color: #f8fafc;
     --text-color: #0f172a;
-    --nav-bg: #5e5e5e;
+    --nav-bg: #2c2c2c;
     --card-bg: #ffffff;
     --input-bg: #f1f5f9;
     --border-color: #e2e8f0;
@@ -102,6 +102,7 @@ body {
     background-color: var(--card-bg) !important;
     color: var(--text-color) !important;
     border-radius: 12px;
+    overflow: hidden;
 }
 
 .card-header {
@@ -295,6 +296,82 @@ body {
 ::-webkit-scrollbar-thumb {
     background: var(--border-color);
     border-radius: 10px;
+}
+
+/* --- GUEST MODE BANNER --- */
+.guest-banner {
+    display: flex;
+    flex-direction: row-reverse;
+    align-items: center;
+    padding: 0;
+    margin-bottom: 0;
+    background-color: transparent !important;
+    border: none !important;
+    gap: 12px;
+}
+
+.guest-banner span {
+    color: white !important; 
+    opacity: 0.8;
+    font-weight: 500;
+}
+
+.theme-toggle-btn-guest {
+    background-color: transparent;
+    border: none;
+    color: var(--text-color) !important; 
+    cursor: pointer;
+    font-size: 1.2rem;
+    margin-right: 0.75rem;
+    display: flex;
+    align-items: center;
+    padding: 0;
+}
+
+.guest-banner .btn-outline-primary {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.8rem;
+    margin-left: 10px;
+    border-radius: 8px;
+    border-color:  rgb(255, 255, 255) !important;
+    color: white !important;
+}
+
+.guest-banner .btn-outline-primary:hover {
+    background-color: var(--primary-btn-bg) !important;
+    color: var(--primary-btn-text) !important;
+}
+
+/* --- ADAPTIVE CONFLICT CARD --- */
+.conflict-card {
+    background-color: var(--tab-bg) !important;
+    border: 1px solid var(--border-color) !important;
+    color: var(--text-color) !important;
+    transition: all 0.3s ease;
+}
+
+.list-title-text {
+    color: var(--text-color) !important;
+}
+
+body.dark-theme .new-name-input {
+    background-color: var(--input-bg) !important;
+    color: var(--text-color) !important;
+    border-color: var(--border-color) !important;
+}
+
+body.dark-theme .btn-outline-primary { color: #60a5fa; border-color: #60a5fa; }
+body.dark-theme .btn-outline-primary:hover, 
+body.dark-theme .btn-check:checked + .btn-outline-primary { 
+    background-color: #60a5fa; 
+    color: #ffffff; 
+}
+
+body.dark-theme .btn-outline-warning { color: #fbbf24; border-color: #fbbf24; }
+body.dark-theme .btn-outline-warning:hover, 
+body.dark-theme .btn-check:checked + .btn-outline-warning { 
+    background-color: #fbbf24; 
+    color: #000000; 
 }
 
 /* --- SWEETALERT2 DARK THEME --- */

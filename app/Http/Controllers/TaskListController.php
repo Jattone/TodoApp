@@ -13,19 +13,25 @@ class TaskListController extends Controller
     public function index()
     {
         $user = Auth::user();
+        if (!$user) {
+            return response()->json([]);
+        }
 
-        $lists = TaskList::where('user_id', $user->id)
-                    ->orWhereHas('members', function ($query) use ($user) {
-                        $query->where('user_id', $user->id);
-                    })
-                    ->withCount('tasks')
-                    ->orderBy('is_favorite', 'desc')
-                    ->orderBy('id', 'asc')
-                    ->get();
+        $lists = TaskList::query()
+            ->where(function ($query) use ($user) {
+                $query->where('user_id', $user->id)
+                      ->orWhereHas('members', function ($q) use ($user) {
+                        $q->where('user_id', $user->id);
+                    });
+            })
+            ->with(['creator:id,name,photo_url'])
+            ->withCount('tasks')
+            ->orderBy('is_favorite', 'desc')
+            ->orderBy('id', 'asc')
+            ->get();
 
         return response()->json($lists);
     }
-
     
     public function store(Request $request)
     {
@@ -71,20 +77,18 @@ class TaskListController extends Controller
     public function destroy($id)
     {
         $user = Auth::user();
-        $list = TaskList::findOrFail($id);
+        $list = $this->findListWithAccess($id);
 
         if ($list->user_id === $user->id) {
             $list->tasks()->delete();
             $list->delete();
+
             return response()->json(['success' => true, 'message' => 'List was completely deleted']);
         }
         
-        if ($list->members()->where('user_id', $user->id)->exists()) {
-            $list->members()->detach($user->id);
-            return response()->json(['success' => true, 'message' => 'You successfully leave the list']);
-        }
-
-        return response()->json(['error' => 'You have no rights to do this, champ'], 403);
+        $list->members()->detach($user->id);
+        
+        return response()->json(['success' => true, 'message' => 'You successfully leave the list']);
     }
 
     private function findListWithAccess($id)

@@ -1,5 +1,7 @@
-// task.js
+import { GuestManager } from './GuestManager.js';
+import { SyncManager } from './SyncManager';
 document.addEventListener('DOMContentLoaded', function() {
+    SyncManager.init();
     const taskListContainer = document.getElementById('task-list');
     const taskForm = document.getElementById('add-task-form');
     const activeListInput = document.getElementById('active-list-id-input');
@@ -7,41 +9,54 @@ document.addEventListener('DOMContentLoaded', function() {
     const clearListBtn = document.getElementById('clear-list-btn');
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
 
-    window.loadTasks = function(listId, newTaskData = null) {
+    window.loadTasks = async function(listId, newTaskData = null) {
+        const taskListContainer = document.getElementById('task-list');
         if (!listId || !taskListContainer) return;
 
-        fetch(`/lists/${listId}/tasks`)
-            .then(res => res.json())
-            .then(tasks => {
-                taskListContainer.innerHTML = '';
+        taskListContainer.innerHTML = '';
+        let tasks = [];
 
-                if (tasks.length === 0) {
-                    taskListContainer.innerHTML = `
-                        <div class="text-center py-5 text-muted animate__animated animate__fadeIn">
-                            <i class="fa-solid fa-mug-hot fa-3x mb-3 opacity-25"></i>
-                            <p class="mb-0">The task list is empty.. Time to relax!</p>
-                        </div>`;
-                    return;
-                }
+        try {
+            if (!window.isAuthenticated) {
+                tasks = GuestManager.getTasks(listId);
+            } else {
+                const res = await fetch(`/lists/${listId}/tasks`);
+                if (!res.ok) throw new Error('Failed to fetch tasks');
+                tasks = await res.json();
+            }
 
-                tasks.forEach(task => {
-                    const item = document.createElement('div');
-                    const isNew = newTaskData && task.id === newTaskData.id;
-                    item.className = `list-group-item list-group-item-action py-3 px-4 border-0 task-row ${isNew ? 'animate__animated animate__fadeInDown' : ''}`;
-                    item.dataset.id = task.id;
-                    item.style.cursor = 'pointer';
-                    item.innerHTML = `
-                        <div class="d-flex align-items-center">
-                            <div class="me-3 text-muted icon-box">
-                                <i class="fa-regular fa-circle"></i>
-                            </div>
-                            <div class="fs-5 text-dark task-text">${task.name}</div>
-                        </div>`;
+        if (tasks.length === 0) {
+            taskListContainer.innerHTML = `
+                <div class="text-center py-5 text-muted animate__animated animate__fadeIn">
+                    <i class="fa-solid fa-mug-hot fa-3x mb-3 opacity-25"></i>
+                    <p class="mb-0">The task list is empty.. Time to relax!</p>
+                </div>`;
+            return;
+        }
+
+        tasks.forEach(task => {
+            const isNew = newTaskData && String(task.id) === String(newTaskData.id);
+            const item = createTaskElement(task, isNew);
+            taskListContainer.appendChild(item);
+
+            item.className = `list-group-item list-group-item-action py-3 px-4 border-0 task-row ${isNew ? 'animate__animated animate__fadeInDown' : ''}`;
+            item.dataset.id = task.id;
+            item.style.cursor = 'pointer';
+            item.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <div class="me-3 text-muted icon-box">
+                        <i class="fa-regular fa-circle"></i>
+                    </div>
+                    <div class="fs-5 text-dark task-text">${task.name}</div>
+                </div>`;
                     
-                    item.onclick = () => confirmTaskDeletion(task.id, task.name, item);
-                    taskListContainer.appendChild(item);
-                });
+            item.onclick = () => confirmTaskDeletion(task.id, task.name, item);
+            taskListContainer.appendChild(item);
             });
+        } catch (error) {
+            console.error('Error loading tasks:', error);
+            taskListContainer.innerHTML = '<div class="text-center py-5 text-danger">Failed to load tasks. Please refresh.</div>';
+        }
     };
 
     // Drag & Drop
@@ -52,6 +67,10 @@ document.addEventListener('DOMContentLoaded', function() {
             onEnd: function() {
                 const order = Array.from(taskListContainer.querySelectorAll('.task-row'))
                     .map(el => el.dataset.id);
+                if (!window.isAuthenticated) {
+                    GuestManager.reorderTasks(order);
+                    return;
+                }
                 fetch('/task/reorder', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
@@ -62,59 +81,44 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Revert last deleted tasks
-    const lastDeletedTasks = {};
+    const lastDeletedTasks = JSON.parse(sessionStorage.getItem('lastDeletedTasks') || '{}');
 
     window.updateRevertUI = function (listId) {
         const revertContainer = document.getElementById('revert-container');
         if(!revertContainer) return;
 
-        if (lastDeletedTasks[listId]) {
+        const currentDeletedTasks = JSON.parse(sessionStorage.getItem('lastDeletedTasks') || '{}');
+
+        if (currentDeletedTasks[listId]) {
             revertContainer.style.display = 'block';
         } else {
             revertContainer.style.display = 'none';
         }
     }
 
-    // Delete task confirmation
-    function confirmTaskDeletion(id, name, element) {
-        const listId = document.getElementById('active-list-id-input').value;
-
-        Swal.fire({
-            title: 'Is task completed?',
-            text: `"${name}"`,
-            icon: 'success',
-            showCancelButton: true,
-            confirmButtonColor: '#10b981',
-            confirmButtonText: 'Yes, remove!',
-            heightAuto: false 
-        }).then((result) => {
-            if (result.isConfirmed) {
-                fetch(`/task/${id}`, {
-                    method: 'DELETE',
-                    headers: { 'X-CSRF-TOKEN': csrfToken, 'X-Requested-With': 'XMLHttpRequest' }
-                }).then(res => {
-                    if (res.ok) {
-                        lastDeletedTasks[listId] = {name: name, listId: listId};
-                        window.updateRevertUI(listId);
-                        
-                        element.classList.add('animate__animated', 'animate__backOutLeft');
-                        setTimeout(() => {
-                            element.remove();
-                            if (taskListContainer.querySelectorAll('.task-row').length === 0) {
-                                window.loadTasks(listId);
-                            }
-                        }, 500);
-                    }
-                });
-            }
-        });
+    const initialListId = activeListInput?.value || localStorage.getItem('lastActiveListId');
+    if (initialListId) {
+        window.updateRevertUI(initialListId);
     }
-
+    
     document.getElementById('revert-btn').onclick = function() {
         const listId = document.getElementById('active-list-id-input').value;
-        const taskData = lastDeletedTasks[listId];
+        const currentData = JSON.parse(sessionStorage.getItem('lastDeletedTasks') || '{}');
+        const taskData = currentData[listId];
         if (!taskData) return;
 
+        if (!window.isAuthenticated) {
+            const newTask = GuestManager.saveTask({
+                name: taskData.name,
+                task_list_id: taskData.listId,
+            });
+            delete currentData[listId];
+            sessionStorage.setItem('lastDeletedTasks', JSON.stringify(currentData));
+            window.updateRevertUI?.(listId);
+            window.loadTasks(listId, newTask);
+            showRestoreToast(taskData.name);
+            return;
+        }
         fetch('/task', {
             method: 'POST',
             headers: {
@@ -127,6 +131,7 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(res => res.json())
         .then(newTask => {
             delete lastDeletedTasks[listId];
+            sessionStorage.setItem('lastDeletedTasks', JSON.stringify(lastDeletedTasks));
             window.updateRevertUI(listId);
             window.loadTasks(listId, newTask);
             const Toast = Swal.mixin({
@@ -134,12 +139,88 @@ document.addEventListener('DOMContentLoaded', function() {
                 position: 'top-end',
                 showConfirmButton: false,
                 timer: 2000,
-        });
+            });
             Toast.fire({
                 icon: 'success',
                 title: `Task "${newTask.name}" restored`
             });
         });
+    }
+    
+    function showRestoreToast(taskName) {
+        const Toast = Swal.mixin({
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 2000,
+        });
+        Toast.fire({
+            icon: 'success',
+            title: `Task "${taskName}" restored`
+        });
+    }
+
+    // Delete task confirmation
+    function confirmTaskDeletion(id, name, element) {
+        const listId = document.getElementById('active-list-id-input').value;
+        
+        Swal.fire({
+            title: 'Is task completed?',
+            text: `"${name}"`,
+            icon: 'success',
+            showCancelButton: true,
+            confirmButtonColor: '#10b981',
+            confirmButtonText: 'Yes, remove!',
+            heightAuto: false
+        }).then((result) => {
+            if (result.isConfirmed) {
+                if (!window.isAuthenticated) {
+                    GuestManager.deleteTask(id);
+                    const lastDeleted = JSON.parse(sessionStorage.getItem('lastDeletedTasks') || '{}');
+                    lastDeleted[listId] = { name: name, listId: listId };
+                    sessionStorage.setItem('lastDeletedTasks', JSON.stringify(lastDeleted));
+                    window.updateRevertUI(listId);
+                    window.loadTasks(listId);
+                    return;
+                } else {
+                    fetch(`/task/${id}`, {
+                        method: 'DELETE',
+                        headers: { 'X-CSRF-TOKEN': csrfToken, 'X-Requested-With': 'XMLHttpRequest' }
+                    }).then(res => {
+                        if (res.ok) {
+                            const lastDeleted = JSON.parse(sessionStorage.getItem('lastDeletedTasks') || '{}');
+                            lastDeleted[listId] = { name: name, listId: listId };
+                            sessionStorage.setItem('lastDeletedTasks', JSON.stringify(lastDeleted));
+                            window.updateRevertUI(listId);
+                            element.classList.add('animate__animated', 'animate__backOutLeft');
+                            setTimeout(() => {
+                                element.remove();
+                                if (taskListContainer.querySelectorAll('.task-row').length === 0) {
+                                    window.loadTasks(listId);
+                                }
+                            }, 500);
+                        }
+                    });
+                }
+            }
+        });
+    }
+    
+    function createTaskElement(task, isNew = false) {
+        const item = document.createElement('div');
+        item.className = `list-group-item list-group-item-action py-3 px-4 border-0 task-row ${isNew ? 'animate__animated animate__fadeInDown' : ''}`;
+        item.dataset.id = task.id;
+        item.style.cursor = 'pointer';
+        item.innerHTML = `
+            <div class="d-flex align-items-center">
+                <div class="me-3 text-muted icon-box">
+                    <i class="fa-regular fa-circle"></i>
+                </div>
+                <div class="fs-5 text-dark task-text">${task.name}</div>
+            </div>`;
+                
+        item.onclick = () => confirmTaskDeletion(task.id, task.name, item);
+        return item;
     }
 
     //  Adding a new task
@@ -156,6 +237,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (!name) return;
 
+            if (!window.isAuthenticated) {
+                const newTask = GuestManager.saveTask({
+                    name: name,
+                    task_list_id: listId,
+                    completed: false
+                });
+                taskNameInput.value = '';
+                handleNewTaskUI(newTask);
+                return;
+            }
+            
             fetch(this.action, {
                 method: 'POST',
                 headers: { 
@@ -168,9 +260,20 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(res => res.json())
             .then(newTask => {
                 taskNameInput.value = '';
-                window.loadTasks(listId, newTask);
+                handleNewTaskUI(newTask);
             });
         };
+    }
+
+    function handleNewTaskUI(newTask) {
+        const taskListContainer = document.getElementById('task-list');
+        const emptyState = taskListContainer.querySelector('.text-center.py-5.text-muted');
+        if (emptyState && emptyState.querySelector('.fa-mug-hot')) {
+            taskListContainer.innerHTML = '';
+        }
+
+        const taskElement = createTaskElement(newTask, true);
+        taskListContainer.appendChild(taskElement);
     }
 
     // Clearing all tasks in the list
@@ -190,23 +293,45 @@ document.addEventListener('DOMContentLoaded', function() {
                 confirmButtonText: 'Clear it all!'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    fetch(`/lists/${listId}/tasks`, {
-                        method: 'DELETE',
-                        headers: { 'X-CSRF-TOKEN': csrfToken, 'X-Requested-With': 'XMLHttpRequest' }
-                    }).then(res => {
-                        if (res.ok) {
-                            const allTasks = taskListContainer.querySelectorAll('.task-row');
-                            allTasks.forEach((item, index) => {
-                                setTimeout(() => item.classList.add('animate__animated', 'animate__fadeOutRight'), index * 50);
-                            });
-                            setTimeout(() => {
-                                window.loadTasks(listId);
-                                Swal.fire('Cleared!', '', 'success');
-                            }, 500);
-                        }
-                    });
+                    if (!window.isAuthenticated) {
+                        GuestManager.clearListTasks(listId);
+                        animateAndClear(listId);
+                        return;
+                    } else {
+                        fetch(`/lists/${listId}/tasks`, {
+                            method: 'DELETE',
+                            headers: { 'X-CSRF-TOKEN': csrfToken, 'X-Requested-With': 'XMLHttpRequest' }
+                        }).then(res => {
+                            if (res.ok) {
+                                const allTasks = taskListContainer.querySelectorAll('.task-row');
+                                allTasks.forEach((item, index) => {
+                                    setTimeout(() => item.classList.add('animate__animated', 'animate__fadeOutRight'), index * 50);
+                                });
+                                setTimeout(() => {
+                                    window.loadTasks(listId);
+                                    Swal.fire('Cleared!', '', 'success');
+                                }, 500);
+                            }
+                        });
+                    }
                 }
             });
         };
+    }
+
+    function animateAndClear(listId) {
+        const allTasks = taskListContainer.querySelectorAll('.task-row');
+        allTasks.forEach((item, index) => {
+            setTimeout(() => item.classList.add('animate__animated', 'animate__fadeOutRight'), index * 50);
+        });
+        setTimeout(() => {
+            window.loadTasks(listId);
+            Swal.fire({
+                title: 'Cleared!',
+                icon: 'success',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        }, 500);
     }
 });

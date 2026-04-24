@@ -28,7 +28,7 @@ class TelegramController extends Controller
 
         Auth::login($user, true);
 
-        return redirect()->intended('/home')->with('status', 'Logged in with Telegram successfully.');
+        return redirect()->route('home')->with('status', 'Logged in with Telegram successfully.');
     }
 
     protected function checkTelegramAuthorization($auth_data)
