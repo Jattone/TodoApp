@@ -13,6 +13,9 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+    <script>
+        window.isAuthenticated = {{ auth()->check() ? 'true' : 'false' }};
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     @vite(['resources/js/app.js', 'resources/css/app.css'])
 </head>
@@ -20,7 +23,21 @@
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow-sm">
         <div class="container">
             <a class="navbar-brand" href="#"><i class="fa-solid fa-list-check me-2"></i> My ToDo List</a>
-            
+            @guest
+            <div class="d-flex align-items-center gap-2">
+                <button id="theme-toggle-btn-guest" class="btn btn-link text-white p-0 me-1">
+                    <i id="theme-icon-guest" class="fa-solid fa-moon"></i>
+                </button>
+                <a href="{{ route('login') }}" 
+                class="d-flex align-items-center bg-white bg-opacity-10 text-white text-decoration-none px-2 py-1 rounded-pill border border-white border-opacity-25 shadow-sm">                   
+                    <div class="bg-warning rounded-circle d-flex align-items-center justify-center me-2" style="width: 20px; height: 20px;">
+                        <i class="fa-solid fa-cloud-slash text-dark" style="font-size: 10px;"></i>
+                    </div>                    
+                    <span style="font-size: 12px; font-weight: 600;" class="me-1">Guest</span>
+                    <i class="fa-solid fa-chevron-right opacity-50" style="font-size: 10px;"></i>
+                </a>
+            </div>
+            @endguest
             @auth
             <div class="dropdown">
                 <a class="nav-link dropdown-toggle d-flex align-items-center text-white" href="#" role="button" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
